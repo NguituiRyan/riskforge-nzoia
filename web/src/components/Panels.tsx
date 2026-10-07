@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import AnimatedValue from "./AnimatedValue";
 import EpChart from "./EpChart";
 import ThemeToggle from "./ThemeToggle";
+import BrandMark from "./BrandMark";
 import type { Theme } from "../lib/theme";
 import { WATER_EXAGGERATION, type CameraPreset } from "./MapScene";
 import type { ColourMode, PortfolioView, RP, Stats } from "../lib/types";
@@ -47,11 +48,9 @@ export function Brand({ stats, portfolio, res, aiCount, onReport, theme, onToggl
   return (
     <div className="glass panel rounded-2xl px-4 py-3">
       <div className="flex items-center gap-3">
-        <Logo />
+        <BrandMark tone={theme === "light" ? "gradient" : "white"} className="h-9 w-9 shrink-0" />
         <div className="min-w-0 flex-1">
-          <div className="font-display text-lg font-bold leading-none tracking-tight">
-            Risk <span className="text-sky-300">Forge</span>
-          </div>
+          <div className="wordmark font-display text-[21px] leading-none">Risk Forge</div>
           <div className="mt-1 truncate text-xs text-slate-400">Nzoia Basin · river flood catastrophe model</div>
         </div>
         <ThemeToggle theme={theme} onToggle={onToggleTheme} />
@@ -75,24 +74,12 @@ export function Brand({ stats, portfolio, res, aiCount, onReport, theme, onToggl
       </div>
       <button
         onClick={onReport}
-        className="mt-3 flex w-full items-center justify-between rounded-xl bg-gradient-to-r from-sky-400 to-cyan-300 px-3 py-2 text-[13px] font-semibold text-slate-950 shadow-[0_8px_30px_-8px_#38bdf8] transition hover:brightness-110"
+        className="mt-3 flex w-full items-center justify-between brand-gradient rounded-xl px-3 py-2 text-[13px] font-semibold text-on-brand shadow-[0_8px_30px_-10px_#2643ff] transition hover:brightness-125"
       >
         <span>Underwriter report</span>
         <span className="text-[11px] font-medium opacity-80">all data, AI, node →</span>
       </button>
     </div>
-  );
-}
-
-function Logo() {
-  return (
-    <svg viewBox="0 0 32 32" className="h-9 w-9 shrink-0" aria-hidden>
-      <rect width="32" height="32" rx="9" fill="#0b1626" stroke="rgb(148 163 184 / .2)" />
-      <path d="M16 5c4 5 7 8.6 7 12.4A7 7 0 0 1 9 17.4C9 13.6 12 10 16 5z" fill="#38bdf8" />
-      <rect x="12" y="19" width="2.4" height="5" rx=".6" fill="#fbbf24" />
-      <rect x="15.2" y="16" width="2.4" height="8" rx=".6" fill="#fbbf24" />
-      <rect x="18.4" y="18" width="2.4" height="6" rx=".6" fill="#fbbf24" />
-    </svg>
   );
 }
 
@@ -130,7 +117,7 @@ export function Controls({ stats, res, s, a, compact }: { stats: Stats; res: Por
               key={r}
               onClick={() => a.setRp(r)}
               className={`rounded-lg px-1 py-1.5 text-[12px] font-medium tabular-nums transition ${
-                r === s.rp ? "bg-sky-400 text-slate-950 shadow-[0_0_20px_-4px_#38bdf8]" : "bg-white/[0.05] text-slate-300 hover:bg-white/10"
+                r === s.rp ? "bg-brand text-on-brand shadow-[0_0_20px_-4px_#2643ff]" : "bg-white/[0.05] text-slate-300 hover:bg-white/10"
               }`}
               aria-pressed={r === s.rp}
               title={`1-in-${r}-year flood (${(100 / r).toFixed(1)}% chance in any year)`}
@@ -352,7 +339,7 @@ export function Credit({ className = "" }: { className?: string }) {
   return (
     <div className={`text-[11px] text-slate-500 ${className}`}>
       Prototype · synthetic portfolio ·{" "}
-      <a href="https://rytrix.co.ke" target="_blank" rel="noopener" className="text-slate-400 hover:text-sky-300">
+      <a href="https://rytrix.co.ke" target="_blank" rel="noopener" className="text-slate-400 hover:text-brand-300">
         Built by Rytrix
       </a>
     </div>

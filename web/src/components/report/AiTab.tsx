@@ -164,7 +164,7 @@ export default function AiTab(p: ReportProps) {
               <button onClick={() => setText(SAMPLE)} className="rounded-lg bg-white/[0.06] px-3 py-1.5 text-[12px] text-slate-300 hover:bg-white/10">
                 Use sample broker email
               </button>
-              <button onClick={ingest} disabled={!text.trim() || busy !== null} className="flex-1 rounded-lg bg-cyan-300 px-3 py-1.5 text-[13px] font-semibold text-slate-950 disabled:opacity-50">
+              <button onClick={ingest} disabled={!text.trim() || busy !== null} className="flex-1 rounded-lg bg-brand px-3 py-1.5 text-[13px] font-semibold text-on-brand disabled:opacity-50">
                 {busy === "ingest" ? "Claude is reading…" : "Read with Claude"}
               </button>
             </div>
@@ -253,7 +253,7 @@ export default function AiTab(p: ReportProps) {
                       setText("");
                       setBatch((b) => b + 1);
                     }}
-                    className="rounded-lg bg-cyan-300 px-4 py-2 text-[13px] font-semibold text-slate-950 disabled:opacity-50"
+                    className="rounded-lg bg-brand px-4 py-2 text-[13px] font-semibold text-on-brand disabled:opacity-50"
                   >
                     Approve and add {newBuildings.length} buildings to the book
                   </button>
@@ -287,7 +287,7 @@ export default function AiTab(p: ReportProps) {
 
       <Card title="2 · Underwriting briefing" hint={<span>every figure checked against the engine · <Badge kind="ai" /></span>}>
         <div className="flex flex-wrap items-center gap-3">
-          <button onClick={writeBriefing} disabled={busy !== null} className="rounded-lg bg-cyan-300 px-4 py-2 text-[13px] font-semibold text-slate-950 disabled:opacity-50">
+          <button onClick={writeBriefing} disabled={busy !== null} className="rounded-lg bg-brand px-4 py-2 text-[13px] font-semibold text-on-brand disabled:opacity-50">
             {busy === "brief" ? "Claude is writing…" : brief ? "Rewrite briefing" : "Write briefing for this book"}
           </button>
           <span className="text-[12px] text-slate-500">Claude sees only aggregated numbers from the engine (totals, return-period losses, top 5 risks, accumulation).</span>

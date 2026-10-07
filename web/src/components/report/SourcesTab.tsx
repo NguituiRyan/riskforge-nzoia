@@ -190,7 +190,7 @@ ${KEY_RPS.map((r) => `- 1-in-${r}${r === 250 ? " (interpolated)" : ""}: ${kes(re
               >
                 {copied ? "Copied" : "Copy"}
               </button>
-              <button onClick={() => download("riskforge_written_note.md", note, "text/markdown")} className="rounded-md bg-sky-400 px-2 py-1 text-[11px] font-semibold text-slate-950">
+              <button onClick={() => download("riskforge_written_note.md", note, "text/markdown")} className="rounded-md bg-brand px-2 py-1 text-[11px] font-semibold text-on-brand">
                 Download .md
               </button>
             </span>

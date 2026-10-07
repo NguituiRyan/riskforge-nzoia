@@ -38,20 +38,20 @@ function fit(v: (typeof VIEWS)[keyof typeof VIEWS]) {
 /** what changes on the map between dark and light mode (the satellite image stays; sky, fog and grading change) */
 const LOOK = {
   dark: {
-    background: "#050b14",
+    background: "#000418",
     brightness: 0.78,
     saturation: -0.3,
-    shadow: "#020617",
+    shadow: "#01031a",
     highlight: "#94a3b8",
-    sky: { "sky-color": "#0b1d3a", "horizon-color": "#1f3b63", "fog-color": "#0a1424" },
+    sky: { "sky-color": "#08103f", "horizon-color": "#1c2c8f", "fog-color": "#040929" },
   },
   light: {
-    background: "#dbe4ee",
+    background: "#e2e6f8",
     brightness: 0.97,
     saturation: -0.08,
     shadow: "#334155",
     highlight: "#ffffff",
-    sky: { "sky-color": "#8cc2f2", "horizon-color": "#e8f2fb", "fog-color": "#eef4fa" },
+    sky: { "sky-color": "#90a2ff", "horizon-color": "#e8ebff", "fog-color": "#eef0fc" },
   },
 } as const;
 

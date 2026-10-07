@@ -70,7 +70,7 @@ export default function BenchmarkTab({ res }: ReportProps) {
               <tr>
                 <th className={th} />
                 {MODELS.map((m) => (
-                  <th key={m} className={`${th} ${m === "Risk Forge" ? "text-sky-300" : ""}`}>
+                  <th key={m} className={`${th} ${m === "Risk Forge" ? "text-brand-300" : ""}`}>
                     {m}
                   </th>
                 ))}
@@ -81,7 +81,7 @@ export default function BenchmarkTab({ res }: ReportProps) {
                 <tr key={dim} className={`${tr} align-top`}>
                   <td className={`${td} whitespace-nowrap font-medium text-slate-200`}>{dim}</td>
                   {cells.map((c, i) => (
-                    <td key={i} className={`${td} tabular-nums ${i === cells.length - 1 ? "bg-sky-400/[0.07] text-sky-100" : "text-slate-300"}`}>
+                    <td key={i} className={`${td} tabular-nums ${i === cells.length - 1 ? "bg-brand-400/[0.08] text-brand-100" : "text-slate-300"}`}>
                       {c}
                     </td>
                   ))}
@@ -119,7 +119,7 @@ export default function BenchmarkTab({ res }: ReportProps) {
           <ul className="space-y-1 text-[12px]">
             {SOURCES.map(([label, href]) => (
               <li key={href}>
-                <a href={href} target="_blank" rel="noopener" className="text-sky-300 hover:underline">
+                <a href={href} target="_blank" rel="noopener" className="text-brand-300 hover:underline">
                   {label}
                 </a>
               </li>

@@ -1,26 +1,45 @@
 @import "tailwindcss";
 
 @theme {
+  /* brand board: Cal Sans display, Inter for running text */
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
-  --font-display: "Space Grotesk", "Inter", ui-sans-serif, sans-serif;
+  --font-display: "Cal Sans", "Inter", ui-sans-serif, sans-serif;
+  /* brand board colours - fixed in both themes */
+  --color-brand: #2643ff;
+  --color-brand-royal: #0f20a2;
+  --color-brand-deep: #11004d;
+  --color-brand-ink: #000418;
+  --color-on-brand: #ffffff;
+  /* tints of the brand blue for accents on dark surfaces (mirrored for light mode below) */
+  --color-brand-50: #f2f4ff;
+  --color-brand-100: #e5e8ff;
+  --color-brand-200: #cbd2ff;
+  --color-brand-300: #a8b4ff;
+  --color-brand-400: #788aff;
+  --color-brand-500: #4d65ff;
+  --color-brand-600: #2643ff;
+  --color-brand-700: #1b32d1;
+  --color-brand-800: #0f20a2;
+  --color-brand-900: #101078;
+  --color-brand-950: #11004d;
 }
 
 :root,
 :root[data-theme="dark"] {
   color-scheme: dark;
-  --ink: #050b14;
+  --ink: #000418;
   --text: #e2e8f0;
   --text-muted: #94a3b8;
-  --glass-bg: rgb(6 12 24 / 0.74);
-  --glass-solid: #0b1424;
-  --line: rgb(148 163 184 / 0.16);
-  --shadow: 0 18px 50px -18px rgb(0 0 0 / 0.75);
-  --scroll: rgb(148 163 184 / 0.25);
-  --chart-line: #7dd3fc;
-  --chart-fill: #38bdf8;
-  --chart-grid: rgb(148 163 184 / 0.15);
-  --chart-dot: #e0f2fe;
-  --chart-dot-stroke: #050b14;
+  --glass-bg: rgb(4 8 34 / 0.76);
+  --glass-solid: #070c2b;
+  --line: rgb(150 162 220 / 0.16);
+  --shadow: 0 18px 50px -18px rgb(0 0 0 / 0.8);
+  --scroll: rgb(150 162 220 / 0.25);
+  --chart-line: #a8b4ff;
+  --chart-fill: #4d65ff;
+  --chart-grid: rgb(150 162 220 / 0.15);
+  --chart-dot: #e5e8ff;
+  --chart-dot-stroke: #000418;
   --chart-mark: #fbbf24;
   --chart-live: #22d3ee;
   --chart-ref: #94a3b8;
@@ -37,18 +56,18 @@
 
 :root[data-theme="light"] {
   color-scheme: light;
-  --ink: #e6ecf3;
+  --ink: #e9ecfb;
   --text: #0f172a;
   --text-muted: #475569;
   --glass-bg: rgb(255 255 255 / 0.86);
   --glass-solid: #ffffff;
-  --line: rgb(15 23 42 / 0.12);
-  --shadow: 0 18px 44px -22px rgb(15 23 42 / 0.45);
+  --line: rgb(17 0 77 / 0.12);
+  --shadow: 0 18px 44px -22px rgb(17 0 77 / 0.4);
   --scroll: rgb(51 65 85 / 0.3);
-  --chart-line: #0284c7;
-  --chart-fill: #0ea5e9;
+  --chart-line: #2643ff;
+  --chart-fill: #2643ff;
   --chart-grid: rgb(51 65 85 / 0.14);
-  --chart-dot: #0369a1;
+  --chart-dot: #0f20a2;
   --chart-dot-stroke: #ffffff;
   --chart-mark: #d97706;
   --chart-live: #0891b2;
@@ -64,6 +83,7 @@
   /* white/black overlays swap so translucent surfaces stay visible */
   --color-white: #0f172a;
   --color-black: #ffffff;
+  --color-brand-50: #11004d; --color-brand-100: #101078; --color-brand-200: #0f20a2; --color-brand-300: #1b32d1; --color-brand-400: #2643ff; --color-brand-600: #788aff; --color-brand-700: #a8b4ff; --color-brand-800: #cbd2ff; --color-brand-900: #e5e8ff; --color-brand-950: #f2f4ff;
   /* generated from tailwindcss/theme.css: shades mirrored so light-on-dark text becomes dark-on-light */
   --color-slate-50: oklch(12.9% 0.042 264.695); --color-slate-100: oklch(20.8% 0.042 265.755); --color-slate-200: oklch(27.9% 0.041 260.031); --color-slate-300: oklch(37.2% 0.044 257.287); --color-slate-400: oklch(44.6% 0.043 257.281); --color-slate-500: oklch(55.4% 0.046 257.417); --color-slate-600: oklch(70.4% 0.04 256.788); --color-slate-700: oklch(86.9% 0.022 252.894); --color-slate-800: oklch(92.9% 0.013 255.508); --color-slate-900: oklch(96.8% 0.007 247.896); --color-slate-950: oklch(98.4% 0.003 247.858);
   --color-sky-50: oklch(29.3% 0.066 243.157); --color-sky-100: oklch(39.1% 0.09 240.876); --color-sky-200: oklch(44.3% 0.11 240.79); --color-sky-300: oklch(50% 0.134 242.749); --color-sky-400: oklch(58.8% 0.158 241.966); --color-sky-500: oklch(68.5% 0.169 237.323); --color-sky-600: oklch(74.6% 0.16 232.661); --color-sky-700: oklch(82.8% 0.111 230.318); --color-sky-800: oklch(90.1% 0.058 230.902); --color-sky-900: oklch(95.1% 0.026 236.824); --color-sky-950: oklch(97.7% 0.013 236.62);
@@ -88,6 +108,30 @@ body {
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
   overscroll-behavior: none;
+}
+
+/* Cal Sans ships one weight: never let the browser fake a bold. Its tabular figures also widen
+   the space and decimal point to a full digit, so display numbers keep the natural spacing. */
+.font-display {
+  font-synthesis: none;
+  font-variant-numeric: normal;
+}
+
+/* the brand board's card gradient: bright blue top right into deep indigo bottom left */
+.brand-gradient {
+  background: linear-gradient(to bottom left, #2643ff, #0f20a2 55%, #11004d);
+}
+
+/* wordmark: white on dark, the board's indigo-to-blue gradient on light */
+.wordmark {
+  color: #fff;
+  letter-spacing: -0.01em;
+}
+:root[data-theme="light"] .wordmark {
+  background: linear-gradient(90deg, #11004d, #0f20a2 40%, #2643ff);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
 }
 
 .glass {

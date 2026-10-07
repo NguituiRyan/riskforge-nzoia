@@ -9,7 +9,7 @@ export function initialTheme(): Theme {
 
 export function applyTheme(t: Theme) {
   document.documentElement.dataset.theme = t;
-  document.querySelector('meta[name="theme-color"]')?.setAttribute("content", t === "light" ? "#e6ecf3" : "#050b14");
+  document.querySelector('meta[name="theme-color"]')?.setAttribute("content", t === "light" ? "#e9ecfb" : "#000418");
   try {
     localStorage.setItem(KEY, t);
   } catch {

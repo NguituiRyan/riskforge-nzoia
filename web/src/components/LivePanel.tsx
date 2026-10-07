@@ -157,7 +157,7 @@ export default function LivePanel({ nd, reading, onReading, scenario, trigger, o
 
       {source === "simulate" && (
         <div>
-          <input type="range" min={0} max={STAGE_MAX} step={0.05} value={simStage} onChange={(e) => setSimStage(Number(e.target.value))} className="w-full accent-sky-400" aria-label="Simulated river stage" />
+          <input type="range" min={0} max={STAGE_MAX} step={0.05} value={simStage} onChange={(e) => setSimStage(Number(e.target.value))} className="w-full accent-brand" aria-label="Simulated river stage" />
           <div className="mt-1 grid grid-cols-4 gap-1 text-[11px]">
             {[
               ["Normal", 2.0],
@@ -179,10 +179,10 @@ export default function LivePanel({ nd, reading, onReading, scenario, trigger, o
             <span>{nd.replay.title}</span>
           </div>
           <div className="mt-2 flex items-center gap-2">
-            <button onClick={() => (dayIdx >= series.length - 1 ? (setDayIdx(0), setPlaying(true)) : setPlaying((p) => !p))} className="rounded-md bg-sky-400 px-2.5 py-1 font-medium text-slate-950">
+            <button onClick={() => (dayIdx >= series.length - 1 ? (setDayIdx(0), setPlaying(true)) : setPlaying((p) => !p))} className="rounded-md bg-brand px-2.5 py-1 font-medium text-on-brand">
               {playing ? "❚❚ Pause" : "▶ Play"}
             </button>
-            <input type="range" min={0} max={series.length - 1} value={dayIdx} onChange={(e) => setDayIdx(Number(e.target.value))} className="flex-1 accent-sky-400" aria-label="Replay day" />
+            <input type="range" min={0} max={series.length - 1} value={dayIdx} onChange={(e) => setDayIdx(Number(e.target.value))} className="flex-1 accent-brand" aria-label="Replay day" />
           </div>
           <div className="mt-1 text-[11px] text-slate-500">
             {replayDay?.date} · GloFAS {replayDay?.q.toLocaleString("en-KE")} m³/s
@@ -202,7 +202,7 @@ export default function LivePanel({ nd, reading, onReading, scenario, trigger, o
               </button>
             </div>
           ) : (
-            <button onClick={connectUsb} disabled={usb.state === "connecting"} className="w-full rounded-lg bg-sky-400 px-3 py-2 font-medium text-slate-950 disabled:opacity-60">
+            <button onClick={connectUsb} disabled={usb.state === "connecting"} className="w-full rounded-lg bg-brand px-3 py-2 font-medium text-on-brand disabled:opacity-60">
               {usb.state === "connecting" ? "Choose the node's port…" : "Connect river node (USB)"}
             </button>
           )}
@@ -243,7 +243,7 @@ export default function LivePanel({ nd, reading, onReading, scenario, trigger, o
         <div className="text-[11px] text-slate-400">
           Pays {kes(trigger.payout)} when Rwambwa reaches {trigger.triggerStage.toFixed(1)} m
           {rpForStage(nd, trigger.triggerStage) ? ` (≈1-in-${Math.round(rpForStage(nd, trigger.triggerStage)!)})` : ""}.{" "}
-          <button onClick={onOpenReport} className="text-sky-300 underline-offset-2 hover:underline">
+          <button onClick={onOpenReport} className="text-brand-300 underline-offset-2 hover:underline">
             Price it
           </button>
         </div>

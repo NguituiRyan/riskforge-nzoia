@@ -146,7 +146,7 @@ export default function SummaryTab({ stats, buildings, res, baseRes, aiRows, gaz
                   </span>
                 </div>
                 <div className="mt-0.5 h-1.5 rounded-full bg-white/[0.06]">
-                  <div className="h-full rounded-full bg-sky-400/80" style={{ width: `${(a.tivInFootprint / acc[0].tivInFootprint) * 100}%` }} />
+                  <div className="h-full rounded-full bg-brand-400/80" style={{ width: `${(a.tivInFootprint / acc[0].tivInFootprint) * 100}%` }} />
                 </div>
               </div>
             ))}
@@ -244,8 +244,8 @@ function Pipeline({ stats, res }: Pick<ReportProps, "stats" | "res">) {
               {kind !== "engine" && <span className={`chip chip-${kind === "assumption" ? "assume" : kind}`}>{kind}</span>}
             </div>
             <div className="mt-1 text-[11px] text-slate-400">{what}</div>
-            <div className="mt-2 text-[12px] font-medium leading-snug text-sky-200">{out}</div>
-            {i < steps.length - 1 && <div className="absolute -right-2 top-1/2 z-10 hidden h-4 w-4 -translate-y-1/2 rotate-45 border-r-2 border-t-2 border-sky-300/70 md:block" aria-hidden />}
+            <div className="mt-2 text-[12px] font-medium leading-snug text-brand-200">{out}</div>
+            {i < steps.length - 1 && <div className="absolute -right-2 top-1/2 z-10 hidden h-4 w-4 -translate-y-1/2 rotate-45 border-r-2 border-t-2 border-brand-300/70 md:block" aria-hidden />}
           </div>
         ))}
       </div>

@@ -34,7 +34,7 @@ export default function BuildingsTab({ buildings, res, portfolio, onPickBuilding
     <Card
       title="All buildings"
       hint={
-        <button onClick={() => download(`riskforge_${portfolio}_buildings.csv`, toCsv(buildings, res))} className="rounded-lg bg-sky-400 px-3 py-1.5 text-[12px] font-semibold text-slate-950">
+        <button onClick={() => download(`riskforge_${portfolio}_buildings.csv`, toCsv(buildings, res))} className="rounded-lg bg-brand px-3 py-1.5 text-[12px] font-semibold text-on-brand">
           Download CSV (all {buildings.length.toLocaleString("en-KE")} rows, every return period)
         </button>
       }
@@ -58,12 +58,12 @@ export default function BuildingsTab({ buildings, res, portfolio, onPickBuilding
           ))}
         </select>
         <label className="flex items-center gap-1.5 rounded-lg bg-white/[0.06] px-2.5 py-1.5 text-slate-300">
-          <input type="checkbox" checked={floodedOnly} onChange={(e) => (setFloodedOnly(e.target.checked), setPage(0))} className="accent-sky-400" />
+          <input type="checkbox" checked={floodedOnly} onChange={(e) => (setFloodedOnly(e.target.checked), setPage(0))} className="accent-brand" />
           Flooded at 1-in-{rp}
         </label>
         <span className="text-slate-500">Return period:</span>
         {RPS.map((r) => (
-          <button key={r} onClick={() => setRp(r)} className={`rounded-md px-2 py-1 ${r === rp ? "bg-sky-400 text-slate-950" : "bg-white/[0.05] text-slate-300"}`}>
+          <button key={r} onClick={() => setRp(r)} className={`rounded-md px-2 py-1 ${r === rp ? "bg-brand text-on-brand" : "bg-white/[0.05] text-slate-300"}`}>
             {r}
           </button>
         ))}

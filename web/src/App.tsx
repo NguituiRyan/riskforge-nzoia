@@ -233,7 +233,7 @@ export default function App() {
             </div>
           </div>
 
-          <Credit className="pointer-events-auto absolute bottom-2 left-1/2 hidden -translate-x-1/2 rounded-full bg-black/40 px-3 py-1 backdrop-blur lg:block" />
+          <Credit className="pointer-events-auto absolute bottom-2 left-1/2 hidden -translate-x-1/2 rounded-full px-3 py-1 lg:block glass" />
 
           {report.open && (
             <Report

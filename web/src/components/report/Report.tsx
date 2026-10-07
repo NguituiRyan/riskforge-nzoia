@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import BrandMark from "../BrandMark";
 import ThemeToggle from "../ThemeToggle";
 import type { Theme } from "../../lib/theme";
 import type { BuildingProps, Place, PortfolioView, Stats } from "../../lib/types";
@@ -54,8 +55,11 @@ export default function Report({ tab, setTab, onClose, theme, onToggleTheme, ...
     <div className="fixed inset-0 z-40 flex items-stretch justify-center bg-black/55 backdrop-blur-sm sm:p-4" role="dialog" aria-modal="true" aria-label="Underwriter report">
       <div className="glass rise-in flex w-full max-w-[1240px] flex-col overflow-hidden sm:rounded-3xl">
         <header className="flex items-center gap-3 border-b border-white/10 px-4 py-3 sm:px-5">
+          <BrandMark tone={theme === "light" ? "gradient" : "white"} className="h-8 w-8 shrink-0" />
           <div className="min-w-0 flex-1">
-            <div className="font-display text-[17px] font-semibold tracking-tight">Underwriter report</div>
+            <div className="font-display text-[18px] leading-tight">
+              <span className="wordmark">Risk Forge</span> <span className="text-slate-400">· Underwriter report</span>
+            </div>
             <div className="truncate text-[12px] text-slate-400">
               {p.portfolioName} · {p.res.count.toLocaleString("en-KE")} buildings{p.aiRows.length ? ` (${p.aiRows.length} AI-added)` : ""} · synthetic portfolio, real JRC flood hazard
             </div>
