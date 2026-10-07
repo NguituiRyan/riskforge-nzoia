@@ -90,6 +90,22 @@ def square(lon, lat, side_m):
     return [[[lon - dlon, lat - dlat], [lon + dlon, lat - dlat], [lon + dlon, lat + dlat], [lon - dlon, lat + dlat], [lon - dlon, lat - dlat]]]
 
 
+def depth_at_rp(depths, rp):
+    """Depth at any return period from the six JRC maps: linear in log(RP) between maps; below 1-in-10 scaled
+    down to zero at the onset RP; held at the 1-in-500 depth beyond it. Mirrors web/src/lib/engine.ts."""
+    if rp <= ONSET_RP:
+        return 0.0
+    if rp < RPS[0]:
+        return depths[RPS[0]] * math.log(rp / ONSET_RP) / math.log(RPS[0] / ONSET_RP)
+    if rp >= RPS[-1]:
+        return depths[RPS[-1]]
+    for a, b in zip(RPS, RPS[1:]):
+        if a <= rp <= b:
+            t = math.log(rp / a) / math.log(b / a)
+            return depths[a] + (depths[b] - depths[a]) * t
+    return depths[RPS[-1]]
+
+
 def aal_from(losses):
     """Area under the EP curve: trapezoid in annual exceedance probability, onset point at zero, flat tail past 1-in-500."""
     pts = [(1 / ONSET_RP, 0.0)] + [(1 / rp, losses[rp]) for rp in RPS]
@@ -115,9 +131,18 @@ def attach_hazard(ex, grid, lake, kenya):
     return ex
 
 
+def loss_at_rp(df, rp):
+    total = 0.0
+    for r in df.to_dict("records"):
+        d = depth_at_rp({t: r[f"hazard_depth_m_rp{t}"] for t in RPS}, rp)
+        total += float(damage_ratio(r["housing_class"], d)) * r["tiv_model"]
+    return total
+
+
 def portfolio_stats(df):
     losses = {rp: float(df[f"loss_kes_rp{rp}"].sum()) for rp in RPS}
     return {
+        "loss250": loss_at_rp(df, 250),
         "count": int(len(df)),
         "tiv": float(df.tiv_model.sum()),
         "byClass": {c: {"count": int((df.housing_class == c).sum()), "tiv": float(df[df.housing_class == c].tiv_model.sum())} for c in CLASS_CURVE},

@@ -1,16 +1,16 @@
 import type { BuildingProps, RP } from "../lib/types";
 import { RPS } from "../lib/types";
+import { buildingAt, severity } from "../lib/engine";
 import { CLASS_COLOUR, CLASS_LABEL, ISSUE_COLOUR, WHERE_LABEL, kes } from "../lib/format";
 
 const DENSITY_LABEL = { urban: "urban", peri_urban: "peri-urban", rural: "rural" } as const;
 
-export default function BuildingCard({ b, rp, severityRefM, onClose }: { b: BuildingProps; rp: RP; severityRefM: number; onClose: () => void }) {
-  const depth = Number(b[`d${rp}`]);
-  const severity = Math.min(depth / severityRefM, 1);
-  const dr = Number(b[`dr${rp}`]);
-  const loss = Number(b[`loss${rp}`]);
+export default function BuildingCard({ b, rp, liveRp, onClose }: { b: BuildingProps; rp: RP; liveRp: number | null; onClose: () => void }) {
+  const showRp = liveRp ?? rp;
+  const now = buildingAt(b, showRp);
   const tivRatio = b.tivCsv / b.tiv;
   const issue = b.where !== "KE";
+  const rpLabel = liveRp ? (liveRp > 2 ? `live ≈1-in-${Math.round(liveRp)}` : "live, in bank") : `1-in-${rp}`;
 
   return (
     <div className="glass panel rounded-2xl p-4 text-sm">
@@ -19,15 +19,15 @@ export default function BuildingCard({ b, rp, severityRefM, onClose }: { b: Buil
           <div className="flex items-center gap-2">
             <span className="h-2.5 w-2.5 rounded-sm" style={{ background: CLASS_COLOUR[b.cls] }} />
             <span className="font-display text-base font-semibold tracking-tight">{b.id}</span>
-            <span className="chip chip-synthetic">synthetic</span>
+            {b.src === "ai" ? <span className="chip chip-ai">AI-ingested · {Math.round((b.confidence ?? 0) * 100)}%</span> : <span className="chip chip-synthetic">synthetic</span>}
           </div>
           <div className="mt-0.5 text-slate-400">
             {CLASS_LABEL[b.cls]} · {b.area.toLocaleString("en-KE")} m² · {b.lat.toFixed(4)}, {b.lon.toFixed(4)}
           </div>
-          {b.density_class && (
+          {(b.density_class || b.settlement) && (
             <div className="text-[12px] text-slate-500">
-              {b.settlement && b.settlement !== "other" ? `near ${b.settlement} · ` : ""}
-              {DENSITY_LABEL[b.density_class]}
+              {b.settlement && b.settlement !== "other" ? `near ${b.settlement}` : ""}
+              {b.density_class ? `${b.settlement && b.settlement !== "other" ? " · " : ""}${DENSITY_LABEL[b.density_class]}` : ""}
               {b.stratum === "floodplain" ? " · floodplain sample" : ""}
             </div>
           )}
@@ -44,10 +44,10 @@ export default function BuildingCard({ b, rp, severityRefM, onClose }: { b: Buil
       )}
 
       <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
-        <Metric label={`Depth · 1-in-${rp}`} value={depth > 0 ? `${depth.toFixed(2)} m` : "dry"} />
-        <Metric label="Severity 0–1" value={severity.toFixed(2)} />
-        <Metric label="Damage ratio" value={`${(dr * 100).toFixed(0)}%`} />
-        <Metric label="Loss" value={kes(loss)} strong />
+        <Metric label={`Depth · ${rpLabel}`} value={now.depth > 0 ? `${now.depth.toFixed(2)} m` : "dry"} />
+        <Metric label="Severity 0–1" value={severity(now.depth).toFixed(2)} />
+        <Metric label="Damage ratio" value={`${(now.dr * 100).toFixed(0)}%`} />
+        <Metric label="Loss" value={kes(now.loss)} strong />
       </div>
 
       <div className="mt-3 text-[12px] text-slate-400">
@@ -60,19 +60,24 @@ export default function BuildingCard({ b, rp, severityRefM, onClose }: { b: Buil
           <tr>
             <th className="py-1 text-left font-medium">Return period</th>
             <th className="text-right font-medium">Depth</th>
+            <th className="text-right font-medium">Severity</th>
             <th className="text-right font-medium">Damage</th>
             <th className="text-right font-medium">Loss</th>
           </tr>
         </thead>
         <tbody>
-          {RPS.map((r) => (
-            <tr key={r} className={r === rp ? "text-amber-200" : "text-slate-300"}>
-              <td className="py-0.5">1-in-{r}</td>
-              <td className="text-right tabular-nums">{Number(b[`d${r}`]).toFixed(2)} m</td>
-              <td className="text-right tabular-nums">{(Number(b[`dr${r}`]) * 100).toFixed(0)}%</td>
-              <td className="text-right tabular-nums">{kes(Number(b[`loss${r}`]))}</td>
-            </tr>
-          ))}
+          {RPS.map((r) => {
+            const x = buildingAt(b, r);
+            return (
+              <tr key={r} className={!liveRp && r === rp ? "text-amber-200" : "text-slate-300"}>
+                <td className="py-0.5">1-in-{r}</td>
+                <td className="text-right tabular-nums">{x.depth.toFixed(2)} m</td>
+                <td className="text-right tabular-nums">{severity(x.depth).toFixed(2)}</td>
+                <td className="text-right tabular-nums">{(x.dr * 100).toFixed(0)}%</td>
+                <td className="text-right tabular-nums">{kes(x.loss)}</td>
+              </tr>
+            );
+          })}
         </tbody>
       </table>
     </div>

@@ -20,6 +20,9 @@ export interface BuildingProps {
   settlement?: string;
   density_class?: "urban" | "peri_urban" | "rural";
   stratum?: "floodplain" | "basin";
+  /** "ai" for rows added through the Claude exposure ingestion and approved by the underwriter */
+  src?: "ai";
+  confidence?: number;
   [key: string]: string | number | undefined;
 }
 
@@ -29,6 +32,7 @@ export interface PortfolioStats {
   byClass: Record<HousingClass, { count: number; tiv: number }>;
   perRp: Record<string, { loss: number; buildingsWet: number; tivWet: number; lossByClass: Record<HousingClass, number> }>;
   aal: number;
+  loss250: number;
 }
 
 export interface Stats {

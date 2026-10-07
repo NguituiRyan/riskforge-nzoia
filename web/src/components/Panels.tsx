@@ -4,7 +4,10 @@ import EpChart from "./EpChart";
 import { WATER_EXAGGERATION, type CameraPreset } from "./MapScene";
 import type { ColourMode, PortfolioView, RP, Stats } from "../lib/types";
 import { CLASSES, RPS } from "../lib/types";
+import { KEY_RPS, ONSET_RP, SEVERITY_REF_M, type PortfolioResult } from "../lib/engine";
 import { CLASS_COLOUR, CLASS_LABEL, DAMAGE_STOPS, DEPTH_STOPS, ISSUE_COLOUR, kes } from "../lib/format";
+
+export type Mode = "scenario" | "live";
 
 export interface ViewState {
   rp: RP;
@@ -12,6 +15,8 @@ export interface ViewState {
   showIssues: boolean;
   portfolio: PortfolioView;
   playing: boolean;
+  mode: Mode;
+  liveRp: number | null;
 }
 
 export interface ViewActions {
@@ -21,40 +26,57 @@ export interface ViewActions {
   setPortfolio: (p: PortfolioView) => void;
   togglePlay: () => void;
   fly: (p: CameraPreset) => void;
+  setMode: (m: Mode) => void;
+  openReport: (tab?: ReportTab) => void;
 }
+
+export type ReportTab = "summary" | "buildings" | "vulnerability" | "ai" | "node" | "sources";
 
 const fmtKes = (n: number) => kes(n);
 const fmtInt = (n: number) => Math.round(n).toLocaleString("en-KE");
 const fmtKm2 = (n: number) => `${Math.round(n).toLocaleString("en-KE")} km²`;
 
-export function Brand({ stats, portfolio }: { stats: Stats; portfolio: PortfolioView }) {
+export function lossesOf(res: PortfolioResult): Record<number, number> {
+  return Object.fromEntries(KEY_RPS.map((r) => [r, res.scenarios[r].loss]));
+}
+
+export function Brand({ stats, portfolio, res, aiCount, onReport }: { stats: Stats; portfolio: PortfolioView; res: PortfolioResult; aiCount: number; onReport: () => void }) {
   const flagged = stats.starterFlags.UG + stats.starterFlags.LAKE;
-  const book = stats.portfolios.book;
   return (
     <div className="glass panel rounded-2xl px-4 py-3">
       <div className="flex items-center gap-3">
         <Logo />
-        <div className="min-w-0">
+        <div className="min-w-0 flex-1">
           <div className="font-display text-lg font-bold leading-none tracking-tight">
             Risk <span className="text-sky-300">Forge</span>
           </div>
-          <div className="mt-1 truncate text-xs text-slate-400">Nzoia Basin · river flood exposure in 3D</div>
+          <div className="mt-1 truncate text-xs text-slate-400">Nzoia Basin · river flood catastrophe model</div>
         </div>
       </div>
       <div className="mt-3 flex flex-wrap gap-1.5">
         <span className="chip chip-real">JRC hazard · real</span>
         <span className="chip chip-synthetic">Portfolio · synthetic</span>
         <span className="chip chip-assume">Damage curves · assumption</span>
+        {aiCount > 0 && <span className="chip chip-ai">{aiCount} AI-added</span>}
       </div>
-      {portfolio === "book" ? (
-        <div className="mt-2 hidden text-[11px] leading-snug text-slate-400 sm:block">
-          {book.count.toLocaleString("en-KE")} synthetic buildings placed on real population (WorldPop 2020), Kenyan land only
-        </div>
-      ) : (
-        <div className="mt-2 hidden text-[11px] leading-snug text-rose-200/80 sm:block">
-          {flagged} of {stats.portfolios.starter.count} starter locations under review with the hosts
-        </div>
-      )}
+      <div className="mt-2 hidden text-[11px] leading-snug sm:block">
+        {portfolio === "book" ? (
+          <span className="text-slate-400">
+            {res.count.toLocaleString("en-KE")} synthetic buildings on real population (WorldPop 2020), Kenyan land only · {kes(res.tiv)} insured
+          </span>
+        ) : (
+          <span className="text-rose-200/80">
+            {flagged} of {stats.portfolios.starter.count} starter locations under review with the hosts
+          </span>
+        )}
+      </div>
+      <button
+        onClick={onReport}
+        className="mt-3 flex w-full items-center justify-between rounded-xl bg-gradient-to-r from-sky-400 to-cyan-300 px-3 py-2 text-[13px] font-semibold text-slate-950 shadow-[0_8px_30px_-8px_#38bdf8] transition hover:brightness-110"
+      >
+        <span>Underwriter report</span>
+        <span className="text-[11px] font-medium opacity-80">all data, AI, node →</span>
+      </button>
     </div>
   );
 }
@@ -71,9 +93,31 @@ function Logo() {
   );
 }
 
-export function Controls({ stats, s, a, compact }: { stats: Stats; s: ViewState; a: ViewActions; compact?: boolean }) {
-  const p = stats.portfolios[s.portfolio];
-  const at = p.perRp[s.rp];
+export function ModeTabs({ mode, setMode }: { mode: Mode; setMode: (m: Mode) => void }) {
+  return (
+    <div className="grid grid-cols-2 gap-1 rounded-xl bg-white/[0.05] p-1">
+      {(
+        [
+          ["scenario", "Flood scenarios"],
+          ["live", "Live river node"],
+        ] as [Mode, string][]
+      ).map(([m, label]) => (
+        <button
+          key={m}
+          onClick={() => setMode(m)}
+          aria-pressed={mode === m}
+          className={`flex items-center justify-center gap-1.5 rounded-lg px-2 py-2 text-[12px] font-medium transition ${mode === m ? "bg-white/[0.14] text-white" : "text-slate-400 hover:text-slate-200"}`}
+        >
+          {m === "live" && <span className={`h-1.5 w-1.5 rounded-full ${mode === "live" ? "animate-pulse bg-cyan-300" : "bg-slate-500"}`} />}
+          {label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+export function Controls({ stats, res, s, a, compact }: { stats: Stats; res: PortfolioResult; s: ViewState; a: ViewActions; compact?: boolean }) {
+  const at = res.scenarios[s.rp];
   return (
     <div className="space-y-4">
       <Section title="Flood scenario" hint="return period">
@@ -103,18 +147,24 @@ export function Controls({ stats, s, a, compact }: { stats: Stats; s: ViewState;
       </Section>
 
       <div className="grid grid-cols-2 gap-2">
+        <Stat label="Total exposure">
+          <AnimatedValue value={res.tiv} format={fmtKes} />
+        </Stat>
         <Stat label="Flooded land" tag="real">
           <AnimatedValue value={stats.floodLandKm2[s.rp]} format={fmtKm2} />
-        </Stat>
-        <Stat label="Buildings in flood">
-          <AnimatedValue value={at.buildingsWet} format={fmtInt} />
-          <span className="text-slate-500"> / {p.count}</span>
         </Stat>
         <Stat label={`Loss · 1-in-${s.rp}`} highlight>
           <AnimatedValue value={at.loss} format={fmtKes} />
         </Stat>
-        <Stat label="Average annual loss">
-          <AnimatedValue value={p.aal} format={fmtKes} />
+        <Stat label="Buildings in flood">
+          <AnimatedValue value={at.wet} format={fmtInt} />
+          <span className="text-slate-500"> / {res.count}</span>
+        </Stat>
+        <Stat label="Avg annual loss">
+          <AnimatedValue value={res.aal} format={fmtKes} />
+        </Stat>
+        <Stat label="1-in-250" tag="interp">
+          <AnimatedValue value={res.scenarios[250].loss} format={fmtKes} />
         </Stat>
       </div>
 
@@ -129,7 +179,7 @@ export function Controls({ stats, s, a, compact }: { stats: Stats; s: ViewState;
         />
         {s.portfolio === "book" ? (
           <p className="mt-2 text-[11px] leading-snug text-slate-500">
-            Placed by population with a town uplift for insurance take-up. {stats.bookStrata.floodplain} of the buildings are drawn from the floodplain zone so flood risk can be analysed; each row carries a sample weight.
+            Placed by population with a town uplift for insurance take-up. {stats.bookStrata.floodplain} buildings drawn from the floodplain zone so flood risk can be analysed; each row carries a sample weight.
           </p>
         ) : (
           <label className="mt-2 flex cursor-pointer items-center justify-between gap-3 text-[12px] text-slate-300">
@@ -166,29 +216,37 @@ export function Controls({ stats, s, a, compact }: { stats: Stats; s: ViewState;
   );
 }
 
-export function Insights({ stats, s, a }: { stats: Stats; s: ViewState; a: ViewActions }) {
-  const p = stats.portfolios[s.portfolio];
-  const byClass = p.perRp[s.rp].lossByClass;
-  const maxClass = Math.max(...CLASSES.map((c) => byClass[c]), 1);
+export function Insights({ res, s, a }: { res: PortfolioResult; s: ViewState; a: ViewActions }) {
+  const rpForBars = s.mode === "live" ? 100 : s.rp;
+  const byClass = res.scenarios[rpForBars].byClass;
+  const maxClass = Math.max(...CLASSES.map((c) => byClass[c].loss), 1);
   return (
     <div className="space-y-4">
       <Section title="Loss by return period" hint="EP curve">
-        <EpChart stats={p} rp={s.rp} onsetRp={stats.onsetRp} onPick={a.setRp} />
-        <p className="mt-1 text-[11px] leading-snug text-slate-500">
-          Losses assumed to start at the 1-in-{stats.onsetRp} flood. JRC maps ignore the Budalangi dykes, so this onset is our biggest uncertainty.
+        <EpChart losses={lossesOf(res)} onsetRp={ONSET_RP} rp={s.mode === "scenario" ? s.rp : null} liveRp={s.mode === "live" ? s.liveRp : null} onPick={a.setRp} />
+        <div className="mt-1 grid grid-cols-4 gap-1 text-center text-[10px] text-slate-400">
+          {[10, 100, 250, 500].map((r) => (
+            <div key={r} className="rounded bg-white/[0.04] py-1">
+              <div>1-in-{r}</div>
+              <div className="tabular-nums text-slate-200">{kes(res.scenarios[r].loss)}</div>
+            </div>
+          ))}
+        </div>
+        <p className="mt-1.5 text-[11px] leading-snug text-slate-500">
+          Losses assumed to start at the 1-in-{ONSET_RP} flood. JRC maps ignore the Budalangi dykes, so this onset is our biggest uncertainty.
         </p>
       </Section>
 
-      <Section title={`Loss by construction · 1-in-${s.rp}`}>
+      <Section title={`Loss by construction · 1-in-${rpForBars}`}>
         <div className="space-y-1.5">
           {CLASSES.map((c) => (
             <div key={c} className="text-[12px]">
               <div className="flex justify-between text-slate-300">
                 <span>{CLASS_LABEL[c]}</span>
-                <span className="tabular-nums text-slate-400">{kes(byClass[c])}</span>
+                <span className="tabular-nums text-slate-400">{kes(byClass[c].loss)}</span>
               </div>
               <div className="mt-0.5 h-1.5 rounded-full bg-white/[0.06]">
-                <div className="h-full rounded-full transition-all duration-700" style={{ width: `${(byClass[c] / maxClass) * 100}%`, background: CLASS_COLOUR[c] }} />
+                <div className="h-full rounded-full transition-all duration-700" style={{ width: `${(byClass[c].loss / maxClass) * 100}%`, background: CLASS_COLOUR[c] }} />
               </div>
             </div>
           ))}
@@ -198,7 +256,7 @@ export function Insights({ stats, s, a }: { stats: Stats; s: ViewState; a: ViewA
       <Section title="Legend">
         <Ramp label="Flood depth" stops={DEPTH_STOPS.map(([v, c]) => [`${v} m`, c])} />
         <p className="mt-1 text-[11px] leading-snug text-slate-500">
-          Severity score = depth ÷ {stats.severityRefM} m, capped at 1 (1 ≈ roof level of a single-storey house). Losses use the depth in metres.
+          Severity score = depth ÷ {SEVERITY_REF_M} m, capped at 1 (≈ roof level of a single-storey house). Losses use the depth in metres.
         </p>
         {s.colourMode === "damage" ? (
           <Ramp label="Damage ratio" stops={DAMAGE_STOPS.filter(([v]) => v !== 0.001).map(([v, c]) => [v === 0 ? "dry" : `${Math.round(v * 100)}%`, c])} />
@@ -217,22 +275,14 @@ export function Insights({ stats, s, a }: { stats: Stats; s: ViewState; a: ViewA
         </p>
       </Section>
 
-      <Section title="Data notes">
-        <ul className="list-disc space-y-1 pl-4 text-[11px] leading-snug text-slate-400">
-          <li>Hazard: JRC global river flood maps, ~925 m cells, undefended (no dykes). Lake Victoria cells masked: {Math.round(stats.lakeWetShare * 100)}% of the raw &quot;flooded&quot; cells were lake water.</li>
-          {s.portfolio === "book" ? (
-            <li>Risk Forge book: synthetic buildings on WorldPop 2020 population, Kenyan land only, lake excluded. Class mix, floor area and cost/m² follow the dataset metadata ranges; not a real portfolio.</li>
-          ) : (
-            <li>Starter CSV from the hosts: {stats.starterFlags.UG} rows fall in Uganda and {stats.starterFlags.LAKE} in Lake Victoria (under review). Its value column is 10× floor area × cost (total {kes(stats.starterTivCsvTotal)}); we use area × cost, per the metadata.</li>
-          )}
-          <li>Damage: Huizinga et al. (2017) JRC Africa curve, adapted per class after Englhardt et al. (2019).</li>
-        </ul>
-      </Section>
+      <button onClick={() => a.openReport("sources")} className="w-full rounded-lg bg-white/[0.05] px-3 py-2 text-left text-[12px] text-slate-300 hover:bg-white/10">
+        Data sources, assumptions and the written note →
+      </button>
     </div>
   );
 }
 
-function Section({ title, hint, children }: { title: string; hint?: string; children: ReactNode }) {
+export function Section({ title, hint, children }: { title: string; hint?: string; children: ReactNode }) {
   return (
     <section>
       <div className="mb-1.5 flex items-baseline justify-between">
@@ -249,14 +299,14 @@ function Stat({ label, tag, highlight, children }: { label: string; tag?: string
     <div className={`rounded-xl px-3 py-2.5 ${highlight ? "bg-amber-300/10 ring-1 ring-amber-300/25" : "bg-white/[0.04]"}`}>
       <div className="flex items-center justify-between text-[10px] uppercase tracking-wider text-slate-500">
         {label}
-        {tag && <span className="text-emerald-400/80">{tag}</span>}
+        {tag && <span className={tag === "real" ? "text-emerald-400/80" : "text-violet-300/80"}>{tag}</span>}
       </div>
-      <div className={`mt-0.5 font-display text-[17px] font-semibold tabular-nums ${highlight ? "text-amber-200" : "text-slate-50"}`}>{children}</div>
+      <div className={`mt-0.5 font-display text-[16px] font-semibold tabular-nums ${highlight ? "text-amber-200" : "text-slate-50"}`}>{children}</div>
     </div>
   );
 }
 
-function Segmented<T extends string>({ value, onChange, options }: { value: T; onChange: (v: T) => void; options: [T, string][] }) {
+export function Segmented<T extends string>({ value, onChange, options }: { value: T; onChange: (v: T) => void; options: [T, string][] }) {
   return (
     <div className="grid grid-cols-2 gap-1 rounded-xl bg-white/[0.04] p-1">
       {options.map(([v, label]) => (

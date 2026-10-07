@@ -57,6 +57,11 @@ body {
   border-color: rgb(252 211 77 / 0.35);
   background: rgb(252 211 77 / 0.08);
 }
+.chip-ai {
+  color: #67e8f9;
+  border-color: rgb(103 232 249 / 0.4);
+  background: rgb(103 232 249 / 0.1);
+}
 .chip-assume {
   color: #c4b5fd;
   border-color: rgb(196 181 253 / 0.35);
@@ -90,6 +95,12 @@ body {
 }
 .toggle:checked::after {
   transform: translateX(14px);
+}
+
+/* numbers in report tables stay on one line; narrow screens scroll the table instead */
+td.text-right,
+th.text-right {
+  white-space: nowrap;
 }
 
 .rise-in {
@@ -168,6 +179,30 @@ body {
   border-radius: 999px;
   border: 2px solid #22d3ee;
   animation: node-pulse 1.8s ease-out infinite;
+}
+.place-node[data-tone="amber"] .place-dot,
+.place-node[data-tone="amber"] .node-pulse {
+  background: #fbbf24;
+  border-color: #fbbf24;
+}
+.place-node[data-tone="red"] .place-dot,
+.place-node[data-tone="danger"] .place-dot {
+  background: #f43f5e;
+}
+.place-node[data-tone="red"] .node-pulse,
+.place-node[data-tone="danger"] .node-pulse {
+  border-color: #f43f5e;
+  animation-duration: 0.9s;
+}
+.place-node[data-tone="amber"] .place-label {
+  color: #fde68a;
+}
+.place-node[data-tone="red"] .place-label,
+.place-node[data-tone="danger"] .place-label {
+  color: #fecdd3;
+}
+.place-node[data-tone="amber"] .node-pulse {
+  background: transparent;
 }
 @keyframes node-pulse {
   from {

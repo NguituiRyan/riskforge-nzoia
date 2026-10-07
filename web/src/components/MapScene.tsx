@@ -3,7 +3,9 @@ import * as maplibregl from "maplibre-gl";
 import workerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url";
 import type { ExpressionSpecification, StyleSpecification } from "@maplibre/maplibre-gl-style-spec";
 import type { Feature, FeatureCollection, Point, Polygon } from "geojson";
-import type { BuildingProps, ColourMode, Place, PortfolioView, RP } from "../lib/types";
+import type { BuildingProps, ColourMode, Place, PortfolioView } from "../lib/types";
+import { RPS } from "../lib/types";
+import { CURVES, HUIZINGA_AFRICA, ONSET_RP } from "../lib/engine";
 import { CLASS_COLOUR, DAMAGE_STOPS, DEPTH_STOPS, ISSUE_COLOUR } from "../lib/format";
 
 // MapLibre v6 resolves its worker relative to its own module URL, which bundlers rewrite; point it at the emitted asset
@@ -12,14 +14,16 @@ maplibregl.setWorkerUrl(workerUrl);
 /** metres of water column drawn per metre of flood depth (display only) */
 export const WATER_EXAGGERATION = 220;
 export const TERRAIN_EXAGGERATION = 1.6;
-/** half the side of the symbolic building squares written by scripts/prepare_3d_data.py (FOOTPRINT_M = 600) */
+/** half the side of the symbolic building squares (600 m squares) */
 const FOOTPRINT_HALF_M = 300;
+export const AI_COLOUR = "#22d3ee";
 
-export type CameraPreset = "basin" | "floodplain" | "tour";
+export type CameraPreset = "basin" | "floodplain" | "tour" | "node";
 
 const VIEWS = {
   basin: { center: [34.42, 0.36] as [number, number], zoom: 8.55, pitch: 58, bearing: -14 },
   floodplain: { center: [34.05, 0.11] as [number, number], zoom: 11.1, pitch: 66, bearing: 28 },
+  node: { center: [34.075, 0.115] as [number, number], zoom: 11.6, pitch: 68, bearing: 50 },
   elgon: { center: [34.56, 1.06] as [number, number], zoom: 10.2, pitch: 72, bearing: 205 },
   webuye: { center: [34.62, 0.55] as [number, number], zoom: 9.6, pitch: 66, bearing: 220 },
 };
@@ -81,17 +85,37 @@ const STYLE: StyleSpecification = {
 
 const num = (key: string): ExpressionSpecification => ["to-number", ["get", key], 0];
 
-function depthAt(a: RP, b: RP, t: number): ExpressionSpecification {
-  if (a === b || t >= 1) return num(`d${b}`);
-  if (t <= 0) return num(`d${a}`);
-  return ["+", ["*", num(`d${a}`), 1 - t], ["*", num(`d${b}`), t]];
+/** depth at any return period, as a style expression - the same rule as depthAtRp() in lib/engine.ts */
+function depthExprAt(rp: number): ExpressionSpecification {
+  const first = RPS[0];
+  const last = RPS[RPS.length - 1];
+  if (rp <= ONSET_RP) return ["*", num(`d${first}`), 0];
+  if (rp < first) return ["*", num(`d${first}`), Math.log(rp / ONSET_RP) / Math.log(first / ONSET_RP)];
+  if (rp >= last) return num(`d${last}`);
+  for (let i = 0; i < RPS.length - 1; i++) {
+    const a = RPS[i];
+    const b = RPS[i + 1];
+    if (rp >= a && rp <= b) {
+      const t = Math.log(rp / a) / Math.log(b / a);
+      return ["+", ["*", num(`d${a}`), 1 - t], ["*", num(`d${b}`), t]];
+    }
+  }
+  return num(`d${last}`);
+}
+
+const classMatch = (pick: (k: number, cap: number) => number): ExpressionSpecification =>
+  ["match", ["get", "cls"], ...Object.entries(CURVES).flatMap(([c, v]) => [c, pick(v.k, v.cap)]), 1] as unknown as ExpressionSpecification;
+
+/** damage ratio = cap x Huizinga(k x depth), evaluated on the GPU - the same curves as damageRatio() */
+function drExpr(depth: ExpressionSpecification): ExpressionSpecification {
+  return ["*", classMatch((_k, cap) => cap), ["interpolate", ["linear"], ["*", depth, classMatch((k) => k)], ...HUIZINGA_AFRICA.flat()]] as unknown as ExpressionSpecification;
 }
 
 function ramp(input: ExpressionSpecification, stops: [number, string][]): ExpressionSpecification {
   return ["interpolate", ["linear"], input, ...stops.flat()] as unknown as ExpressionSpecification;
 }
 
-function buildingColour(mode: ColourMode, rp: RP, showIssues: boolean): ExpressionSpecification {
+function buildingColour(mode: ColourMode, rp: number, showIssues: boolean): ExpressionSpecification {
   const base: ExpressionSpecification =
     mode === "class"
       ? [
@@ -103,7 +127,7 @@ function buildingColour(mode: ColourMode, rp: RP, showIssues: boolean): Expressi
           "concrete_rcc", CLASS_COLOUR.concrete_rcc,
           "#94a3b8",
         ]
-      : ramp(num(`dr${rp}`), DAMAGE_STOPS);
+      : ramp(drExpr(depthExprAt(rp)), DAMAGE_STOPS);
   return showIssues ? ["case", ["!=", ["get", "where"], "KE"], ISSUE_COLOUR, base] : base;
 }
 
@@ -119,27 +143,36 @@ function toPoints(fc: FeatureCollection<Polygon, BuildingProps>): FeatureCollect
   };
 }
 
+export interface NodeMarkerState {
+  live: boolean;
+  label: string; // e.g. "4.51 m · Warning"
+  tone: "ok" | "amber" | "red" | "danger";
+}
+
 interface Props {
   buildings: FeatureCollection<Polygon, BuildingProps>;
   places: Place[];
-  rp: RP;
+  /** return period the water shows; continuous in live mode */
+  waterRp: number;
+  live: boolean;
   colourMode: ColourMode;
   showIssues: boolean;
   portfolio: PortfolioView;
   selectedId: string | null;
   camera: { preset: CameraPreset; nonce: number } | null;
+  nodeState: NodeMarkerState;
   onSelect: (b: BuildingProps | null) => void;
-  onIntroDone: () => void;
 }
 
 export default function MapScene(props: Props) {
-  const { buildings, places, rp, colourMode, showIssues, portfolio, selectedId, camera } = props;
+  const { buildings, places, waterRp, live, colourMode, showIssues, portfolio, selectedId, camera, nodeState } = props;
   const container = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
   const [ready, setReady] = useState<maplibregl.Map | null>(null); // the map instance whose style has loaded
-  const shownRp = useRef<RP>(rp);
-  const callbacks = useRef({ onSelect: props.onSelect, onIntroDone: props.onIntroDone });
-  callbacks.current = { onSelect: props.onSelect, onIntroDone: props.onIntroDone };
+  const shownRp = useRef<number>(waterRp);
+  const nodeEl = useRef<HTMLDivElement | null>(null);
+  const onSelect = useRef(props.onSelect);
+  onSelect.current = props.onSelect;
   const initialBuildings = useRef(buildings);
   const buildingsRef = useRef(buildings);
   buildingsRef.current = buildings;
@@ -163,17 +196,20 @@ export default function MapScene(props: Props) {
 
     const markers: maplibregl.Marker[] = [];
     let cancelled = false;
+    const startRp = shownRp.current;
 
     // style.load (not load): start as soon as the style is ready instead of waiting for every tile on a slow network
     map.once("style.load", () => {
+      if (cancelled) return; // a removed instance (React StrictMode mounts twice in dev) must never become "ready"
       map.addSource("border", { type: "geojson", data: "/data/border.geojson" });
       map.addSource("river", { type: "geojson", data: "/data/river.geojson" });
       map.addSource("flood", { type: "geojson", data: "/data/flood_cells.geojson" });
       map.addSource("buildings", { type: "geojson", data: initialBuildings.current });
       map.addSource("building-points", { type: "geojson", data: toPoints(initialBuildings.current) });
 
+      const d = depthExprAt(startRp);
       map.addLayer({ id: "border", type: "line", source: "border", paint: { "line-color": "#e2e8f0", "line-opacity": 0.55, "line-width": 1.2, "line-dasharray": [3, 2] } });
-      map.addLayer({ id: "flood-fill", type: "fill", source: "flood", paint: { "fill-color": ramp(depthAt(rp, rp, 1), DEPTH_STOPS), "fill-opacity": 0.3 } });
+      map.addLayer({ id: "flood-fill", type: "fill", source: "flood", paint: { "fill-color": ramp(d, DEPTH_STOPS), "fill-opacity": ["case", [">", d, 0.01], 0.32, 0] } });
       map.addLayer({ id: "river-glow", type: "line", source: "river", layout: { "line-join": "round", "line-cap": "round" }, paint: { "line-color": "#38bdf8", "line-width": ["interpolate", ["linear"], ["zoom"], 7, 5, 12, 14], "line-blur": 6, "line-opacity": 0.45 } });
       map.addLayer({ id: "river-core", type: "line", source: "river", layout: { "line-join": "round", "line-cap": "round" }, paint: { "line-color": "#bae6fd", "line-width": ["interpolate", ["linear"], ["zoom"], 7, 1.1, 12, 3], "line-opacity": 0.9 } });
       map.addLayer({
@@ -182,7 +218,7 @@ export default function MapScene(props: Props) {
         source: "building-points",
         paint: {
           "circle-radius": ["interpolate", ["linear"], ["zoom"], 6, 2, 9, 4, 12, 9],
-          "circle-color": buildingColour(colourMode, rp, showIssues && portfolio === "starter"),
+          "circle-color": buildingColour(colourMode, startRp, showIssues && portfolio === "starter"),
           "circle-blur": 0.55,
           "circle-opacity": 0.85,
           "circle-pitch-alignment": "map",
@@ -204,22 +240,36 @@ export default function MapScene(props: Props) {
         },
       });
       map.addLayer({
+        id: "ai-ring",
+        type: "circle",
+        source: "building-points",
+        filter: ["==", ["get", "src"], "ai"],
+        paint: {
+          "circle-radius": ["interpolate", ["linear"], ["zoom"], 6, 5, 9, 9, 12, 18],
+          "circle-color": "rgba(34,211,238,0.12)",
+          "circle-stroke-color": AI_COLOUR,
+          "circle-stroke-width": 2,
+          "circle-pitch-alignment": "map",
+        },
+      });
+      map.addLayer({
         id: "water",
         type: "fill-extrusion",
         source: "flood",
         paint: {
-          "fill-extrusion-color": ramp(depthAt(rp, rp, 1), DEPTH_STOPS),
-          "fill-extrusion-height": ["*", depthAt(rp, rp, 1), WATER_EXAGGERATION],
+          "fill-extrusion-color": ramp(d, DEPTH_STOPS),
+          "fill-extrusion-height": ["*", d, WATER_EXAGGERATION],
           "fill-extrusion-base": 0,
           "fill-extrusion-opacity": 0.78,
         },
       });
+      map.setFilter("water", [">", d, 0.01]);
       map.addLayer({
         id: "buildings",
         type: "fill-extrusion",
         source: "buildings",
         paint: {
-          "fill-extrusion-color": buildingColour(colourMode, rp, showIssues && portfolio === "starter"),
+          "fill-extrusion-color": buildingColour(colourMode, startRp, showIssues && portfolio === "starter"),
           "fill-extrusion-height": BUILDING_HEIGHT,
           "fill-extrusion-base": 0,
           "fill-extrusion-opacity": 0.95,
@@ -247,7 +297,7 @@ export default function MapScene(props: Props) {
         }
         return best?.b ?? null;
       };
-      map.on("click", (e) => callbacks.current.onSelect(pickAt(e.point)));
+      map.on("click", (e) => onSelect.current(pickAt(e.point)));
       let hoverQueued = false;
       map.on("mousemove", (e) => {
         if (hoverQueued) return;
@@ -265,19 +315,21 @@ export default function MapScene(props: Props) {
         for (const p of places) {
           const el = document.createElement("div");
           el.className = `place place-${p.kind}`;
-          el.innerHTML =
-            p.kind === "node"
-              ? `<span class="node-pulse"></span><span class="place-dot"></span><span class="place-label">River node · ${p.name}</span>`
-              : `<span class="place-dot"></span><span class="place-label">${p.name}</span>`;
+          if (p.kind === "node") {
+            el.innerHTML = `<span class="node-pulse"></span><span class="place-dot"></span><span class="place-label">River node · ${p.name}<span class="node-reading"></span></span>`;
+            nodeEl.current = el;
+          } else {
+            el.innerHTML = `<span class="place-dot"></span><span class="place-label">${p.name}</span>`;
+          }
           markers.push(new maplibregl.Marker({ element: el, anchor: "left" }).setLngLat([p.lon, p.lat]).addTo(map));
         }
-        callbacks.current.onIntroDone();
       });
     });
 
     return () => {
       cancelled = true;
       markers.forEach((m) => m.remove());
+      nodeEl.current = null;
       map.remove();
       mapRef.current = null;
       setReady(null);
@@ -286,7 +338,7 @@ export default function MapScene(props: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [places]);
 
-  // ---- swap portfolios without rebuilding the map ----
+  // ---- swap portfolios / AI rows without rebuilding the map ----
   useEffect(() => {
     const map = ready;
     if (!map) return;
@@ -294,55 +346,73 @@ export default function MapScene(props: Props) {
     map.getSource<maplibregl.GeoJSONSource>("building-points")?.setData(toPoints(buildings));
   }, [buildings, ready]);
 
-  // ---- rising water when the return period changes ----
+  // ---- water level: animate in log(return period) from what is shown to the new value ----
   useEffect(() => {
     const map = ready;
     if (!map) return;
     const from = shownRp.current;
-    const to = rp;
-    const apply = (t: number) => {
-      const d = depthAt(from, to, t);
+    const to = waterRp;
+    const issues = showIssues && portfolio === "starter";
+    // zero-height extrusions still draw a flat top, so hide cells that are dry at the shown return period;
+    // during an animation keep every cell that is wet at either end, then tighten at the last frame
+    const setWet = (rp: number) => map.setFilter("water", [">", depthExprAt(rp), 0.01]);
+    setWet(Math.max(from, to));
+    const apply = (rp: number) => {
+      const d = depthExprAt(rp);
       map.setPaintProperty("water", "fill-extrusion-height", ["*", d, WATER_EXAGGERATION]);
       map.setPaintProperty("water", "fill-extrusion-color", ramp(d, DEPTH_STOPS));
       map.setPaintProperty("flood-fill", "fill-color", ramp(d, DEPTH_STOPS));
       map.setPaintProperty("flood-fill", "fill-opacity", ["case", [">", d, 0.01], 0.32, 0]);
+      if (colourMode === "damage") {
+        const c = buildingColour(colourMode, rp, issues);
+        map.setPaintProperty("buildings", "fill-extrusion-color", c);
+        map.setPaintProperty("building-glow", "circle-color", c);
+      }
     };
-    if (from === to) {
-      apply(1);
+    if (Math.abs(Math.log(from) - Math.log(to)) < 1e-6) {
+      apply(to);
+      setWet(to);
       return;
     }
     let raf = 0;
     let start = 0;
-    const duration = 1200;
+    const duration = live ? 450 : 1200;
+    const lf = Math.log(Math.max(from, 1.01));
+    const lt = Math.log(Math.max(to, 1.01));
     const step = (ts: number) => {
       if (!start) start = ts;
       const t = Math.min(1, (ts - start) / duration);
-      apply(t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2);
+      const e = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+      const rp = Math.exp(lf + (lt - lf) * e);
+      shownRp.current = rp;
+      apply(rp);
       if (t < 1) raf = requestAnimationFrame(step);
-      else shownRp.current = to;
+      else {
+        shownRp.current = to;
+        setWet(to);
+      }
     };
     raf = requestAnimationFrame(step);
-    return () => {
-      cancelAnimationFrame(raf);
-      shownRp.current = to;
-    };
-  }, [rp, ready]);
+    return () => cancelAnimationFrame(raf);
+    // colour inputs are handled by the next effect; here they only matter mid-animation
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [waterRp, ready]);
 
   // ---- building colours, issue rings (the starter CSV is the only portfolio with location issues) ----
   useEffect(() => {
     const map = ready;
     if (!map) return;
     const issues = showIssues && portfolio === "starter";
-    const colour = buildingColour(colourMode, rp, issues);
+    const colour = buildingColour(colourMode, shownRp.current, issues);
     map.setPaintProperty("buildings", "fill-extrusion-color", colour);
     map.setPaintProperty("building-glow", "circle-color", colour);
     map.setLayoutProperty("issue-ring", "visibility", issues ? "visible" : "none");
-  }, [colourMode, rp, showIssues, portfolio, ready]);
+  }, [colourMode, showIssues, portfolio, ready]);
 
   // ---- pulse the issue rings ----
   useEffect(() => {
     const map = ready;
-    if (!map || !showIssues) return;
+    if (!map || !showIssues || portfolio !== "starter") return;
     let raf = 0;
     const tick = (ts: number) => {
       const s = 0.5 + 0.5 * Math.sin(ts / 420);
@@ -351,7 +421,16 @@ export default function MapScene(props: Props) {
     };
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
-  }, [showIssues, ready]);
+  }, [showIssues, portfolio, ready]);
+
+  // ---- river node marker shows the live reading ----
+  useEffect(() => {
+    const el = nodeEl.current;
+    if (!el) return;
+    el.dataset.tone = nodeState.live ? nodeState.tone : "";
+    const reading = el.querySelector(".node-reading");
+    if (reading) reading.textContent = nodeState.live ? ` · ${nodeState.label}` : "";
+  }, [nodeState, ready]);
 
   // ---- selection ----
   useEffect(() => {
@@ -359,9 +438,9 @@ export default function MapScene(props: Props) {
     if (!map) return;
     map.setFilter("building-selected", ["==", ["get", "id"], selectedId ?? ""]);
     if (!selectedId) return;
-    const f = buildings.features.find((x) => x.properties.id === selectedId);
+    const f = buildingsRef.current.features.find((x) => x.properties.id === selectedId);
     if (f) map.easeTo({ center: [f.properties.lon, f.properties.lat], zoom: Math.max(map.getZoom(), 10.4), pitch: 62, duration: 1300 });
-  }, [selectedId, ready, buildings]);
+  }, [selectedId, ready]);
 
   // ---- camera presets ----
   useEffect(() => {

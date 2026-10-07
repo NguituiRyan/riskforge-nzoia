@@ -1,0 +1,224 @@
+[
+{
+"name": "Bondo",
+"lat": -0.1006,
+"lon": 34.2253,
+"kind": "village"
+},
+{
+"name": "Budalangi",
+"lat": 0.0664,
+"lon": 34.0069,
+"kind": "focus"
+},
+{
+"name": "Bukoma",
+"lat": 0.0869,
+"lon": 33.9643,
+"kind": "village"
+},
+{
+"name": "Bulemia",
+"lat": 0.1181,
+"lon": 34.0017,
+"kind": "village"
+},
+{
+"name": "Bumala",
+"lat": 0.3031,
+"lon": 34.2024,
+"kind": "village"
+},
+{
+"name": "Bungoma",
+"lat": 0.7829,
+"lon": 34.7192,
+"kind": "town"
+},
+{
+"name": "Busia",
+"lat": 0.3712,
+"lon": 34.2648,
+"kind": "town"
+},
+{
+"name": "Butula",
+"lat": 0.343,
+"lon": 34.2938,
+"kind": "village"
+},
+{
+"name": "Funyula",
+"lat": 0.2805,
+"lon": 34.1197,
+"kind": "village"
+},
+{
+"name": "Igigo",
+"lat": 0.0993,
+"lon": 34.0158,
+"kind": "village"
+},
+{
+"name": "Kakamega",
+"lat": 0.4957,
+"lon": 34.8015,
+"kind": "town"
+},
+{
+"name": "Khajula",
+"lat": 0.077,
+"lon": 33.9935,
+"kind": "village"
+},
+{
+"name": "Kisumu",
+"lat": -0.1029,
+"lon": 34.7542,
+"kind": "town"
+},
+{
+"name": "Kitale",
+"lat": 1.0181,
+"lon": 35.0002,
+"kind": "town"
+},
+{
+"name": "Lugale",
+"lat": 0.0841,
+"lon": 34.0054,
+"kind": "village"
+},
+{
+"name": "Mabinju",
+"lat": 0.0688,
+"lon": 33.9929,
+"kind": "village"
+},
+{
+"name": "Malaba",
+"lat": 0.6327,
+"lon": 34.2694,
+"kind": "town"
+},
+{
+"name": "Matayos",
+"lat": 0.3839,
+"lon": 34.1773,
+"kind": "village"
+},
+{
+"name": "Mt Elgon",
+"lat": 1.1183,
+"lon": 34.5267,
+"kind": "peak"
+},
+{
+"name": "Mudembi",
+"lat": 0.1232,
+"lon": 34.0529,
+"kind": "village"
+},
+{
+"name": "Mumias",
+"lat": 0.3351,
+"lon": 34.4834,
+"kind": "town"
+},
+{
+"name": "Mundika",
+"lat": 0.0875,
+"lon": 34.0563,
+"kind": "village"
+},
+{
+"name": "Musoma",
+"lat": 0.3833,
+"lon": 34.1666,
+"kind": "village"
+},
+{
+"name": "Nangina",
+"lat": 0.2763,
+"lon": 34.1033,
+"kind": "village"
+},
+{
+"name": "Osieko",
+"lat": -0.0312,
+"lon": 34.0152,
+"kind": "village"
+},
+{
+"name": "Port Victoria",
+"lat": 0.0897,
+"lon": 33.993,
+"kind": "town"
+},
+{
+"name": "Rukala",
+"lat": 0.0524,
+"lon": 33.9939,
+"kind": "village"
+},
+{
+"name": "Rwambwa",
+"lat": 0.1289,
+"lon": 34.0915,
+"kind": "node"
+},
+{
+"name": "Sega",
+"lat": 0.2558,
+"lon": 34.2258,
+"kind": "village"
+},
+{
+"name": "Siaya",
+"lat": -0.0604,
+"lon": 34.2001,
+"kind": "town"
+},
+{
+"name": "Siginga",
+"lat": 0.0887,
+"lon": 33.9732,
+"kind": "village"
+},
+{
+"name": "Sigiri",
+"lat": 0.0976,
+"lon": 33.9926,
+"kind": "village"
+},
+{
+"name": "Sio Port",
+"lat": 0.2241,
+"lon": 34.0216,
+"kind": "village"
+},
+{
+"name": "Sisenye",
+"lat": 0.1607,
+"lon": 33.9975,
+"kind": "village"
+},
+{
+"name": "Ugunja",
+"lat": 0.2036,
+"lon": 34.3403,
+"kind": "village"
+},
+{
+"name": "Ukwala",
+"lat": 0.1933,
+"lon": 34.1894,
+"kind": "village"
+},
+{
+"name": "Webuye",
+"lat": 0.6076,
+"lon": 34.7688,
+"kind": "town"
+}
+]
