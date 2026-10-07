@@ -1,0 +1,219 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Space Grotesk", "Inter", ui-sans-serif, sans-serif;
+}
+
+:root {
+  color-scheme: dark;
+  --ink: #050b14;
+  --line: rgb(148 163 184 / 0.16);
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  overscroll-behavior: none;
+}
+
+.glass {
+  background: rgb(6 12 24 / 0.74);
+  backdrop-filter: blur(16px) saturate(140%);
+  -webkit-backdrop-filter: blur(16px) saturate(140%);
+  border: 1px solid var(--line);
+  box-shadow: 0 18px 50px -18px rgb(0 0 0 / 0.75);
+}
+
+.scroll-thin {
+  scrollbar-width: thin;
+  scrollbar-color: rgb(148 163 184 / 0.25) transparent;
+}
+
+.chip {
+  border-radius: 999px;
+  padding: 2px 8px;
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  border: 1px solid;
+  white-space: nowrap;
+}
+.chip-real {
+  color: #6ee7b7;
+  border-color: rgb(110 231 183 / 0.35);
+  background: rgb(110 231 183 / 0.08);
+}
+.chip-synthetic {
+  color: #fcd34d;
+  border-color: rgb(252 211 77 / 0.35);
+  background: rgb(252 211 77 / 0.08);
+}
+.chip-assume {
+  color: #c4b5fd;
+  border-color: rgb(196 181 253 / 0.35);
+  background: rgb(196 181 253 / 0.08);
+}
+
+.toggle {
+  appearance: none;
+  width: 34px;
+  height: 20px;
+  border-radius: 999px;
+  background: rgb(148 163 184 / 0.25);
+  position: relative;
+  cursor: pointer;
+  transition: background 0.2s;
+  flex-shrink: 0;
+}
+.toggle::after {
+  content: "";
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 14px;
+  height: 14px;
+  border-radius: 999px;
+  background: #e2e8f0;
+  transition: transform 0.2s;
+}
+.toggle:checked {
+  background: #f43f5e;
+}
+.toggle:checked::after {
+  transform: translateX(14px);
+}
+
+.rise-in {
+  animation: rise-in 0.45s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+@keyframes rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+}
+
+/* ---- place markers ---- */
+.place {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  pointer-events: none;
+  font-family: var(--font-sans);
+}
+.place-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: #e2e8f0;
+  box-shadow: 0 0 0 2px rgb(5 11 20 / 0.7);
+}
+.place-label {
+  font-size: 11px;
+  font-weight: 500;
+  color: #e2e8f0;
+  text-shadow: 0 1px 3px rgb(0 0 0 / 0.9), 0 0 10px rgb(0 0 0 / 0.6);
+  white-space: nowrap;
+}
+.place-village .place-label,
+.place-landmark .place-label {
+  font-size: 10px;
+  color: #cbd5e1;
+}
+.place-focus .place-dot {
+  background: #fbbf24;
+}
+.place-focus .place-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #fde68a;
+}
+.place-peak .place-dot {
+  width: 0;
+  height: 0;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+  border-left: 5px solid transparent;
+  border-right: 5px solid transparent;
+  border-bottom: 8px solid #e2e8f0;
+}
+.place-peak .place-label {
+  font-style: italic;
+}
+.place-node {
+  position: relative;
+}
+.place-node .place-dot {
+  background: #22d3ee;
+}
+.place-node .place-label {
+  color: #a5f3fc;
+  font-weight: 600;
+}
+.node-pulse {
+  position: absolute;
+  left: -7px;
+  width: 20px;
+  height: 20px;
+  border-radius: 999px;
+  border: 2px solid #22d3ee;
+  animation: node-pulse 1.8s ease-out infinite;
+}
+@keyframes node-pulse {
+  from {
+    transform: scale(0.4);
+    opacity: 1;
+  }
+  to {
+    transform: scale(2.2);
+    opacity: 0;
+  }
+}
+
+/* ---- MapLibre controls, dark ---- */
+.maplibregl-ctrl-group {
+  background: rgb(6 12 24 / 0.8) !important;
+  border: 1px solid var(--line);
+  box-shadow: none !important;
+}
+.maplibregl-ctrl-group button + button {
+  border-top-color: var(--line) !important;
+}
+.maplibregl-ctrl-group button .maplibregl-ctrl-icon {
+  filter: invert(1) opacity(0.8);
+}
+.maplibregl-ctrl.maplibregl-ctrl-attrib {
+  background: rgb(6 12 24 / 0.82) !important;
+  color: #94a3b8 !important;
+}
+.maplibregl-ctrl-attrib-inner,
+.maplibregl-ctrl-attrib a {
+  color: #cbd5e1 !important;
+}
+.maplibregl-ctrl-attrib-button {
+  filter: invert(1);
+}
+
+@media (max-width: 1023px) {
+  /* keep attribution and zoom buttons above the collapsed bottom sheet */
+  .maplibregl-ctrl-bottom-right {
+    bottom: 220px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .node-pulse,
+  .rise-in {
+    animation: none;
+  }
+}

@@ -1,0 +1,37 @@
+# secrets
+.env
+.env.*
+!.env.example
+
+# python
+__pycache__/
+*.pyc
+.venv/
+venv/
+.pytest_cache/
+
+# node
+node_modules/
+dist/
+build/
+.next/
+
+# hackathon source documents and meeting notes stay local (not ours to publish)
+*.docx
+*.pdf
+Kenya_Re_hackathon_briefing_transcript.md
+Kenya_Re_Hackathon_Day1_Meeting_Notes.md
+STEP_BY_STEP_GUIDE.md
+/exposure_nzoia_synthetic.csv
+data-20261007T102931Z-1-001/
+
+# vercel
+.vercel/
+*.local
+
+# local run artefacts
+runs/
+*.duckdb
+*.sqlite
+.DS_Store
+Thumbs.db

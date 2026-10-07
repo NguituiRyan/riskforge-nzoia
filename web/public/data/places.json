@@ -1,0 +1,17 @@
+[
+  { "name": "Budalangi", "lat": 0.0664, "lon": 34.0069, "kind": "focus" },
+  { "name": "Port Victoria", "lat": 0.0897, "lon": 33.9930, "kind": "town" },
+  { "name": "Rwambwa", "lat": 0.1289, "lon": 34.0915, "kind": "node" },
+  { "name": "Yala Swamp", "lat": 0.0331, "lon": 34.0615, "kind": "landmark" },
+  { "name": "Sio Port", "lat": 0.2241, "lon": 34.0216, "kind": "village" },
+  { "name": "Busia", "lat": 0.3712, "lon": 34.2648, "kind": "town" },
+  { "name": "Bumala", "lat": 0.3031, "lon": 34.2024, "kind": "village" },
+  { "name": "Mumias", "lat": 0.3351, "lon": 34.4834, "kind": "town" },
+  { "name": "Kakamega", "lat": 0.4957, "lon": 34.8015, "kind": "town" },
+  { "name": "Webuye", "lat": 0.6076, "lon": 34.7688, "kind": "town" },
+  { "name": "Bungoma", "lat": 0.7829, "lon": 34.7192, "kind": "town" },
+  { "name": "Kitale", "lat": 1.0181, "lon": 35.0002, "kind": "town" },
+  { "name": "Mt Elgon", "lat": 1.1183, "lon": 34.5267, "kind": "peak" },
+  { "name": "Siaya", "lat": -0.0604, "lon": 34.2001, "kind": "town" },
+  { "name": "Kisumu", "lat": -0.1029, "lon": 34.7542, "kind": "town" }
+]

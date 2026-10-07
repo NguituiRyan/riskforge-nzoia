@@ -1,0 +1,333 @@
+{
+ "returnPeriods": [
+  10,
+  20,
+  50,
+  100,
+  200,
+  500
+ ],
+ "onsetRp": 2.0,
+ "severityRefM": 4.0,
+ "cellKm2": 0.861,
+ "floodLandKm2": {
+  "10": 384.7,
+  "20": 411.4,
+  "50": 430.3,
+  "100": 442.3,
+  "200": 456.1,
+  "500": 476.8
+ },
+ "maxDepthLand": {
+  "10": 11.98,
+  "20": 12.39,
+  "50": 12.83,
+  "100": 13.11,
+  "200": 13.37,
+  "500": 13.69
+ },
+ "lakeWetShare": 0.856,
+ "starterFlags": {
+  "KE": 337,
+  "UG": 118,
+  "LAKE": 45
+ },
+ "starterTivCsvTotal": 22737765000.0,
+ "bookStrata": {
+  "basin": 1020,
+  "floodplain": 180
+ },
+ "curves": {
+  "informal_iron_sheet": {
+   "k": 1.6,
+   "cap": 0.95
+  },
+  "semi_permanent": {
+   "k": 1.25,
+   "cap": 0.9
+  },
+  "permanent_masonry": {
+   "k": 1.0,
+   "cap": 0.85
+  },
+  "concrete_rcc": {
+   "k": 0.8,
+   "cap": 0.75
+  }
+ },
+ "portfolios": {
+  "book": {
+   "count": 1200,
+   "tiv": 8444395000.0,
+   "byClass": {
+    "informal_iron_sheet": {
+     "count": 286,
+     "tiv": 36460000.0
+    },
+    "semi_permanent": {
+     "count": 329,
+     "tiv": 184620000.0
+    },
+    "permanent_masonry": {
+     "count": 415,
+     "tiv": 3214480000.0
+    },
+    "concrete_rcc": {
+     "count": 170,
+     "tiv": 5008835000.0
+    }
+   },
+   "perRp": {
+    "10": {
+     "loss": 168827195.0,
+     "buildingsWet": 46,
+     "tivWet": 280210000.0,
+     "lossByClass": {
+      "informal_iron_sheet": 1484380.0,
+      "semi_permanent": 4410495.0,
+      "permanent_masonry": 74219170.0,
+      "concrete_rcc": 88713150.0
+     }
+    },
+    "20": {
+     "loss": 173721125.0,
+     "buildingsWet": 46,
+     "tivWet": 280210000.0,
+     "lossByClass": {
+      "informal_iron_sheet": 1510295.0,
+      "semi_permanent": 4467455.0,
+      "permanent_masonry": 75623090.0,
+      "concrete_rcc": 92120285.0
+     }
+    },
+    "50": {
+     "loss": 178695115.0,
+     "buildingsWet": 49,
+     "tivWet": 292805000.0,
+     "lossByClass": {
+      "informal_iron_sheet": 1552605.0,
+      "semi_permanent": 4597435.0,
+      "permanent_masonry": 76795010.0,
+      "concrete_rcc": 95750065.0
+     }
+    },
+    "100": {
+     "loss": 181146965.0,
+     "buildingsWet": 50,
+     "tivWet": 293340000.0,
+     "lossByClass": {
+      "informal_iron_sheet": 1581110.0,
+      "semi_permanent": 4700245.0,
+      "permanent_masonry": 77522295.0,
+      "concrete_rcc": 97343315.0
+     }
+    },
+    "200": {
+     "loss": 182843025.0,
+     "buildingsWet": 50,
+     "tivWet": 293340000.0,
+     "lossByClass": {
+      "informal_iron_sheet": 1606285.0,
+      "semi_permanent": 4802035.0,
+      "permanent_masonry": 78078885.0,
+      "concrete_rcc": 98355820.0
+     }
+    },
+    "500": {
+     "loss": 184899980.0,
+     "buildingsWet": 50,
+     "tivWet": 293340000.0,
+     "lossByClass": {
+      "informal_iron_sheet": 1633730.0,
+      "semi_permanent": 4932250.0,
+      "permanent_masonry": 78749780.0,
+      "concrete_rcc": 99584220.0
+     }
+    }
+   },
+   "aal": 51245990.4425
+  },
+  "starter": {
+   "count": 500,
+   "tiv": 2273710000.0,
+   "byClass": {
+    "informal_iron_sheet": {
+     "count": 168,
+     "tiv": 18830000.0
+    },
+    "semi_permanent": {
+     "count": 154,
+     "tiv": 76535000.0
+    },
+    "permanent_masonry": {
+     "count": 124,
+     "tiv": 672755000.0
+    },
+    "concrete_rcc": {
+     "count": 54,
+     "tiv": 1505590000.0
+    }
+   },
+   "perRp": {
+    "10": {
+     "loss": 33436035.0,
+     "buildingsWet": 46,
+     "tivWet": 162375000.0,
+     "lossByClass": {
+      "informal_iron_sheet": 936115.0,
+      "semi_permanent": 883525.0,
+      "permanent_masonry": 15959995.0,
+      "concrete_rcc": 15656400.0
+     }
+    },
+    "20": {
+     "loss": 35805175.0,
+     "buildingsWet": 48,
+     "tivWet": 167660000.0,
+     "lossByClass": {
+      "informal_iron_sheet": 1039575.0,
+      "semi_permanent": 1127570.0,
+      "permanent_masonry": 17022605.0,
+      "concrete_rcc": 16615425.0
+     }
+    },
+    "50": {
+     "loss": 38559580.0,
+     "buildingsWet": 48,
+     "tivWet": 167660000.0,
+     "lossByClass": {
+      "informal_iron_sheet": 1147820.0,
+      "semi_permanent": 1405340.0,
+      "permanent_masonry": 18294345.0,
+      "concrete_rcc": 17712075.0
+     }
+    },
+    "100": {
+     "loss": 40587330.0,
+     "buildingsWet": 48,
+     "tivWet": 167660000.0,
+     "lossByClass": {
+      "informal_iron_sheet": 1232865.0,
+      "semi_permanent": 1552070.0,
+      "permanent_masonry": 19332970.0,
+      "concrete_rcc": 18469425.0
+     }
+    },
+    "200": {
+     "loss": 42495430.0,
+     "buildingsWet": 48,
+     "tivWet": 167660000.0,
+     "lossByClass": {
+      "informal_iron_sheet": 1303910.0,
+      "semi_permanent": 1679135.0,
+      "permanent_masonry": 20282235.0,
+      "concrete_rcc": 19230150.0
+     }
+    },
+    "500": {
+     "loss": 44742295.0,
+     "buildingsWet": 48,
+     "tivWet": 167660000.0,
+     "lossByClass": {
+      "informal_iron_sheet": 1372260.0,
+      "semi_permanent": 1820890.0,
+      "permanent_masonry": 21448245.0,
+      "concrete_rcc": 20100900.0
+     }
+    }
+   },
+   "aal": 10357491.2025
+  },
+  "starterKenya": {
+   "count": 337,
+   "tiv": 1472300000.0,
+   "byClass": {
+    "informal_iron_sheet": {
+     "count": 117,
+     "tiv": 12885000.0
+    },
+    "semi_permanent": {
+     "count": 109,
+     "tiv": 53995000.0
+    },
+    "permanent_masonry": {
+     "count": 75,
+     "tiv": 390935000.0
+    },
+    "concrete_rcc": {
+     "count": 36,
+     "tiv": 1014485000.0
+    }
+   },
+   "perRp": {
+    "10": {
+     "loss": 115260.0,
+     "buildingsWet": 2,
+     "tivWet": 2460000.0,
+     "lossByClass": {
+      "informal_iron_sheet": 16245.0,
+      "semi_permanent": 0.0,
+      "permanent_masonry": 99015.0,
+      "concrete_rcc": 0.0
+     }
+    },
+    "20": {
+     "loss": 199710.0,
+     "buildingsWet": 2,
+     "tivWet": 2460000.0,
+     "lossByClass": {
+      "informal_iron_sheet": 18585.0,
+      "semi_permanent": 0.0,
+      "permanent_masonry": 181125.0,
+      "concrete_rcc": 0.0
+     }
+    },
+    "50": {
+     "loss": 282330.0,
+     "buildingsWet": 2,
+     "tivWet": 2460000.0,
+     "lossByClass": {
+      "informal_iron_sheet": 21510.0,
+      "semi_permanent": 0.0,
+      "permanent_masonry": 260820.0,
+      "concrete_rcc": 0.0
+     }
+    },
+    "100": {
+     "loss": 349200.0,
+     "buildingsWet": 2,
+     "tivWet": 2460000.0,
+     "lossByClass": {
+      "informal_iron_sheet": 23175.0,
+      "semi_permanent": 0.0,
+      "permanent_masonry": 326025.0,
+      "concrete_rcc": 0.0
+     }
+    },
+    "200": {
+     "loss": 413295.0,
+     "buildingsWet": 2,
+     "tivWet": 2460000.0,
+     "lossByClass": {
+      "informal_iron_sheet": 24480.0,
+      "semi_permanent": 0.0,
+      "permanent_masonry": 388815.0,
+      "concrete_rcc": 0.0
+     }
+    },
+    "500": {
+     "loss": 484905.0,
+     "buildingsWet": 2,
+     "tivWet": 2460000.0,
+     "lossByClass": {
+      "informal_iron_sheet": 26055.0,
+      "semi_permanent": 0.0,
+      "permanent_masonry": 458850.0,
+      "concrete_rcc": 0.0
+     }
+    }
+   },
+   "aal": 45537.847499999996
+  }
+ }
+}
