@@ -186,6 +186,8 @@ interface Props {
   nodeState: NodeMarkerState;
   theme: Theme;
   onSelect: (b: BuildingProps | null) => void;
+  /** called once the opening zoom-in lands, unless the viewer already took over the camera */
+  onIntroDone?: () => void;
 }
 
 export default function MapScene(props: Props) {
@@ -197,6 +199,9 @@ export default function MapScene(props: Props) {
   const nodeEl = useRef<HTMLDivElement | null>(null);
   const onSelect = useRef(props.onSelect);
   onSelect.current = props.onSelect;
+  const onIntroDone = useRef(props.onIntroDone);
+  onIntroDone.current = props.onIntroDone;
+  const userMoved = useRef(false);
   const initialBuildings = useRef(buildings);
   const initialTheme = useRef(theme);
   const buildingsRef = useRef(buildings);
@@ -221,6 +226,10 @@ export default function MapScene(props: Props) {
 
     const markers: maplibregl.Marker[] = [];
     let cancelled = false;
+    // any drag, scroll or tap means the viewer is driving: never start or continue an automatic flight after that
+    const tookOver = () => (userMoved.current = true);
+    const canvasBox = map.getCanvasContainer();
+    for (const ev of ["pointerdown", "wheel", "touchstart"]) canvasBox.addEventListener(ev, tookOver, { passive: true });
     const startRp = shownRp.current;
 
     // style.load (not load): start as soon as the style is ready instead of waiting for every tile on a slow network
@@ -348,6 +357,7 @@ export default function MapScene(props: Props) {
           }
           markers.push(new maplibregl.Marker({ element: el, anchor: "left" }).setLngLat([p.lon, p.lat]).addTo(map));
         }
+        if (!userMoved.current) onIntroDone.current?.();
       });
     });
 
@@ -485,11 +495,19 @@ export default function MapScene(props: Props) {
     const map = ready;
     if (!map || !camera) return;
     let stop = false;
+    // the tour is a sequence of flights: a drag, scroll or tap halts it where it is
+    const box = map.getCanvasContainer();
+    const halt = () => {
+      if (stop) return;
+      stop = true;
+      map.stop();
+    };
     const run = async () => {
       if (camera.preset !== "tour") {
         map.flyTo({ ...fit(VIEWS[camera.preset]), duration: 3200, essential: true });
         return;
       }
+      for (const ev of ["pointerdown", "wheel", "touchstart"]) box.addEventListener(ev, halt, { passive: true });
       for (const v of [VIEWS.elgon, VIEWS.webuye, VIEWS.floodplain]) {
         if (stop) return;
         map.flyTo({ ...fit(v), duration: 4200, curve: 1.2, essential: true });
@@ -499,6 +517,7 @@ export default function MapScene(props: Props) {
     void run();
     return () => {
       stop = true;
+      for (const ev of ["pointerdown", "wheel", "touchstart"]) box.removeEventListener(ev, halt);
     };
   }, [camera, ready]);
 

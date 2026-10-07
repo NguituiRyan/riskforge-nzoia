@@ -54,6 +54,8 @@ export default function App() {
   const root = useRef<HTMLDivElement>(null);
   const rpRef = useRef(rp);
   rpRef.current = rp;
+  const modeRef = useRef<Mode>(mode);
+  modeRef.current = mode;
 
   useEffect(() => {
     Promise.all([
@@ -174,6 +176,10 @@ export default function App() {
           nodeState={nodeState}
           theme={theme}
           onSelect={setSelected}
+          onIntroDone={() => {
+            // after the opening zoom-in, fly Elgon → Webuye → Budalangi (the "Elgon → lake" tour) unless the viewer went live
+            if (modeRef.current === "scenario") setCamera({ preset: "tour", nonce: Date.now() });
+          }}
         />
       )}
 

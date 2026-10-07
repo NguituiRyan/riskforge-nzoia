@@ -42,5 +42,5 @@ function devApi(): Plugin {
 export default defineConfig(({ mode }) => {
   // the repo-root .env holds ANTHROPIC_API_KEY, ANTHROPIC_MODEL and NODE_SECRET for the dev API
   Object.assign(process.env, loadEnv(mode, path.resolve(__dirname, ".."), ""));
-  return { plugins: [react(), tailwindcss(), devApi()] };
+  return { plugins: [react(), tailwindcss(), devApi()], server: { port: Number(process.env.PORT) || 5173 } };
 });
