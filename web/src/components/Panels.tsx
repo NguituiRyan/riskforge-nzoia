@@ -1,11 +1,13 @@
 import type { ReactNode } from "react";
 import AnimatedValue from "./AnimatedValue";
 import EpChart from "./EpChart";
+import ThemeToggle from "./ThemeToggle";
+import type { Theme } from "../lib/theme";
 import { WATER_EXAGGERATION, type CameraPreset } from "./MapScene";
 import type { ColourMode, PortfolioView, RP, Stats } from "../lib/types";
 import { CLASSES, RPS } from "../lib/types";
 import { KEY_RPS, ONSET_RP, SEVERITY_REF_M, type PortfolioResult } from "../lib/engine";
-import { CLASS_COLOUR, CLASS_LABEL, DAMAGE_STOPS, DEPTH_STOPS, ISSUE_COLOUR, kes } from "../lib/format";
+import { CLASS_UI, CLASS_LABEL, DAMAGE_STOPS, DEPTH_STOPS, ISSUE_COLOUR, kes } from "../lib/format";
 
 export type Mode = "scenario" | "live";
 
@@ -30,7 +32,7 @@ export interface ViewActions {
   openReport: (tab?: ReportTab) => void;
 }
 
-export type ReportTab = "summary" | "buildings" | "vulnerability" | "ai" | "node" | "sources";
+export type ReportTab = "summary" | "benchmark" | "buildings" | "vulnerability" | "ai" | "node" | "sources";
 
 const fmtKes = (n: number) => kes(n);
 const fmtInt = (n: number) => Math.round(n).toLocaleString("en-KE");
@@ -40,7 +42,7 @@ export function lossesOf(res: PortfolioResult): Record<number, number> {
   return Object.fromEntries(KEY_RPS.map((r) => [r, res.scenarios[r].loss]));
 }
 
-export function Brand({ stats, portfolio, res, aiCount, onReport }: { stats: Stats; portfolio: PortfolioView; res: PortfolioResult; aiCount: number; onReport: () => void }) {
+export function Brand({ stats, portfolio, res, aiCount, onReport, theme, onToggleTheme }: { stats: Stats; portfolio: PortfolioView; res: PortfolioResult; aiCount: number; onReport: () => void; theme: Theme; onToggleTheme: () => void }) {
   const flagged = stats.starterFlags.UG + stats.starterFlags.LAKE;
   return (
     <div className="glass panel rounded-2xl px-4 py-3">
@@ -52,6 +54,7 @@ export function Brand({ stats, portfolio, res, aiCount, onReport }: { stats: Sta
           </div>
           <div className="mt-1 truncate text-xs text-slate-400">Nzoia Basin · river flood catastrophe model</div>
         </div>
+        <ThemeToggle theme={theme} onToggle={onToggleTheme} />
       </div>
       <div className="mt-3 flex flex-wrap gap-1.5">
         <span className="chip chip-real">JRC hazard · real</span>
@@ -246,7 +249,7 @@ export function Insights({ res, s, a }: { res: PortfolioResult; s: ViewState; a:
                 <span className="tabular-nums text-slate-400">{kes(byClass[c].loss)}</span>
               </div>
               <div className="mt-0.5 h-1.5 rounded-full bg-white/[0.06]">
-                <div className="h-full rounded-full transition-all duration-700" style={{ width: `${(byClass[c].loss / maxClass) * 100}%`, background: CLASS_COLOUR[c] }} />
+                <div className="h-full rounded-full transition-all duration-700" style={{ width: `${(byClass[c].loss / maxClass) * 100}%`, background: CLASS_UI[c] }} />
               </div>
             </div>
           ))}
@@ -264,7 +267,7 @@ export function Insights({ res, s, a }: { res: PortfolioResult; s: ViewState; a:
           <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-[11px] text-slate-300">
             {CLASSES.map((c) => (
               <span key={c} className="flex items-center gap-1.5">
-                <span className="h-2 w-2 rounded-sm" style={{ background: CLASS_COLOUR[c] }} />
+                <span className="h-2 w-2 rounded-sm" style={{ background: CLASS_UI[c] }} />
                 {CLASS_LABEL[c]}
               </span>
             ))}

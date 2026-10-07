@@ -1,4 +1,6 @@
 import { useEffect } from "react";
+import ThemeToggle from "../ThemeToggle";
+import type { Theme } from "../../lib/theme";
 import type { BuildingProps, Place, PortfolioView, Stats } from "../../lib/types";
 import type { FloodGrid, PortfolioResult, ScenarioResult } from "../../lib/engine";
 import type { NodeData, TriggerTerms } from "../../lib/node";
@@ -9,6 +11,7 @@ import VulnerabilityTab from "./VulnerabilityTab";
 import AiTab from "./AiTab";
 import NodeTab from "./NodeTab";
 import SourcesTab from "./SourcesTab";
+import BenchmarkTab from "./BenchmarkTab";
 
 export interface ReportProps {
   stats: Stats;
@@ -32,6 +35,7 @@ export interface ReportProps {
 
 const TABS: [ReportTab, string][] = [
   ["summary", "Summary"],
+  ["benchmark", "vs global models"],
   ["buildings", "Buildings"],
   ["vulnerability", "Vulnerability"],
   ["ai", "AI analyst"],
@@ -39,7 +43,7 @@ const TABS: [ReportTab, string][] = [
   ["sources", "Sources & assumptions"],
 ];
 
-export default function Report({ tab, setTab, onClose, ...p }: ReportProps & { tab: ReportTab; setTab: (t: ReportTab) => void; onClose: () => void }) {
+export default function Report({ tab, setTab, onClose, theme, onToggleTheme, ...p }: ReportProps & { tab: ReportTab; setTab: (t: ReportTab) => void; onClose: () => void; theme: Theme; onToggleTheme: () => void }) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
     window.addEventListener("keydown", onKey);
@@ -56,6 +60,7 @@ export default function Report({ tab, setTab, onClose, ...p }: ReportProps & { t
               {p.portfolioName} · {p.res.count.toLocaleString("en-KE")} buildings{p.aiRows.length ? ` (${p.aiRows.length} AI-added)` : ""} · synthetic portfolio, real JRC flood hazard
             </div>
           </div>
+          <ThemeToggle theme={theme} onToggle={onToggleTheme} />
           <button onClick={onClose} className="rounded-lg px-3 py-1.5 text-[13px] text-slate-300 hover:bg-white/10" aria-label="Close report">
             ✕ Close
           </button>
@@ -74,6 +79,7 @@ export default function Report({ tab, setTab, onClose, ...p }: ReportProps & { t
         </nav>
         <div className="scroll-thin min-h-0 flex-1 overflow-y-auto p-3 sm:p-5">
           {tab === "summary" && <SummaryTab {...p} />}
+          {tab === "benchmark" && <BenchmarkTab {...p} />}
           {tab === "buildings" && <BuildingsTab {...p} />}
           {tab === "vulnerability" && <VulnerabilityTab />}
           {tab === "ai" && <AiTab {...p} />}

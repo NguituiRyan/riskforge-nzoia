@@ -1,4 +1,5 @@
 import EpChart from "../EpChart";
+import { HazardBars, ShareBars, StackedLossBars } from "../charts";
 import { lossesOf } from "../Panels";
 import { Card, Kpi, td, th, tr } from "./ui";
 import type { ReportProps } from "./Report";
@@ -6,11 +7,11 @@ import type { RP } from "../../lib/types";
 import { CLASSES, RPS } from "../../lib/types";
 import { aal, KEY_RPS, ONSET_RP, technicalPremium } from "../../lib/engine";
 import { accumulation, topRisks } from "../../lib/report";
-import { CLASS_COLOUR, CLASS_LABEL, kes } from "../../lib/format";
+import { CLASS_UI, CLASS_LABEL, kes } from "../../lib/format";
 
 const pct = (x: number, d = 2) => `${(x * 100).toFixed(d)}%`;
 
-export default function SummaryTab({ buildings, res, baseRes, aiRows, gazetteer, live, onPickBuilding }: ReportProps) {
+export default function SummaryTab({ stats, buildings, res, baseRes, aiRows, gazetteer, live, onPickBuilding }: ReportProps) {
   const prem = technicalPremium(res);
   const lossByRp = Object.fromEntries(RPS.map((r) => [r, res.scenarios[r].loss])) as Record<RP, number>;
   const acc = accumulation(buildings, gazetteer).slice(0, 8);
@@ -40,6 +41,18 @@ export default function SummaryTab({ buildings, res, baseRes, aiRows, gazetteer,
           {kes(d100)}.
         </div>
       )}
+
+      <Pipeline stats={stats} res={res} />
+
+      <div className="grid gap-4 lg:grid-cols-5">
+        <Card title="Loss by return period, by construction class" hint="hover a bar for the breakdown" className="lg:col-span-3">
+          <StackedLossBars res={res} />
+        </Card>
+        <Card title="EP curve" hint={aiRows.length ? "teal: with AI-added rows · grey: before" : "loss vs rarity"} className="lg:col-span-2">
+          <EpChart losses={lossesOf(res)} baseline={aiRows.length ? lossesOf(baseRes) : null} onsetRp={ONSET_RP} rp={100} liveRp={live?.rp ?? null} height={210} />
+          <p className="mt-1 text-[11px] text-slate-500">Each point: the loss with that annual chance of being exceeded. Steep at the frequent end, flat beyond 1-in-50: the flood plain fills early.</p>
+        </Card>
+      </div>
 
       <div className="grid gap-4 lg:grid-cols-5">
         <Card title="Loss at key return periods" hint="the EP curve in numbers" className="lg:col-span-3">
@@ -79,14 +92,16 @@ export default function SummaryTab({ buildings, res, baseRes, aiRows, gazetteer,
             Each row applies one JRC return-period map to the whole book (one flood across the reach). 1-in-250 interpolates each building's depth between the 200- and 500-year maps.
           </p>
         </Card>
-        <Card title="EP curve" hint="loss vs rarity" className="lg:col-span-2">
-          <EpChart losses={lossesOf(res)} onsetRp={ONSET_RP} rp={100} liveRp={live?.rp ?? null} height={190} />
+        <Card title="Hazard: land under water by return period" hint="real JRC data · lake masked" className="lg:col-span-2">
+          <HazardBars km2={stats.floodLandKm2} maxDepth={stats.maxDepthLand} />
+          <p className="mt-1 text-[11px] text-slate-500">The flooded area grows only ~24% from 1-in-10 to 1-in-500: in the lower Nzoia the flood plain fills even in common floods, so frequent events drive the loss.</p>
         </Card>
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
-        <Card title="By construction class">
-          <div className="overflow-x-auto">
+        <Card title="By construction class" hint="where the value is vs where the loss comes from">
+          <ShareBars res={res} />
+          <div className="mt-4 overflow-x-auto">
             <table className="w-full text-[13px]">
               <thead>
                 <tr>
@@ -102,7 +117,7 @@ export default function SummaryTab({ buildings, res, baseRes, aiRows, gazetteer,
                 {CLASSES.map((c) => (
                   <tr key={c} className={`${tr} text-slate-200`}>
                     <td className={td}>
-                      <span className="mr-1.5 inline-block h-2 w-2 rounded-sm" style={{ background: CLASS_COLOUR[c] }} />
+                      <span className="mr-1.5 inline-block h-2 w-2 rounded-sm" style={{ background: CLASS_UI[c] }} />
                       {CLASS_LABEL[c]}
                     </td>
                     <td className={`${td} text-right`}>{res.byClass[c].count}</td>
@@ -204,5 +219,36 @@ export default function SummaryTab({ buildings, res, baseRes, aiRows, gazetteer,
         </Card>
       </div>
     </div>
+  );
+}
+
+/** the four-stage chain the brief describes, with this book's intermediate outputs */
+function Pipeline({ stats, res }: Pick<ReportProps, "stats" | "res">) {
+  const at100 = res.scenarios[100];
+  const meanDr = at100.tivWet > 0 ? at100.loss / at100.tivWet : 0;
+  const prem = technicalPremium(res);
+  const steps: [string, string, string, string][] = [
+    ["1 · Hazard", "Six JRC return-period depth maps", `${Math.round(stats.floodLandKm2["100"])} km² of land flooded at 1-in-100`, "real"],
+    ["2 · Vulnerability", "Depth-damage curve per class", `${Math.round(meanDr * 100)}% average damage to flooded value at 1-in-100`, "assumption"],
+    ["3 · Exposure", `${res.count.toLocaleString("en-KE")} buildings`, `${kes(res.tiv)} insured · ${at100.wet} in the 1-in-100 flood`, "synthetic"],
+    ["4 · Financial engine", "Loss = damage × value, per return period", `1-in-100 ${kes(at100.loss)} · AAL ${kes(res.aal)}`, "engine"],
+    ["Decision", "EP curve, PML, price", `1-in-250 ${kes(res.scenarios[250].loss)} · premium ${kes(prem.gross)} (illustr.)`, "engine"],
+  ];
+  return (
+    <Card title="How the model gets from flood maps to a price" hint="each box shows this book's intermediate output">
+      <div className="grid gap-2 md:grid-cols-5">
+        {steps.map(([title, what, out, kind], i) => (
+          <div key={title} className="relative rounded-xl border border-white/10 bg-white/[0.03] p-3">
+            <div className="flex items-center justify-between gap-2">
+              <div className="text-[12px] font-semibold text-slate-100">{title}</div>
+              {kind !== "engine" && <span className={`chip chip-${kind === "assumption" ? "assume" : kind}`}>{kind}</span>}
+            </div>
+            <div className="mt-1 text-[11px] text-slate-400">{what}</div>
+            <div className="mt-2 text-[12px] font-medium leading-snug text-sky-200">{out}</div>
+            {i < steps.length - 1 && <div className="absolute -right-2 top-1/2 z-10 hidden h-4 w-4 -translate-y-1/2 rotate-45 border-r-2 border-t-2 border-sky-300/70 md:block" aria-hidden />}
+          </div>
+        ))}
+      </div>
+    </Card>
   );
 }

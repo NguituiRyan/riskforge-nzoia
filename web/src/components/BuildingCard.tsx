@@ -1,7 +1,8 @@
 import type { BuildingProps, RP } from "../lib/types";
 import { RPS } from "../lib/types";
 import { buildingAt, severity } from "../lib/engine";
-import { CLASS_COLOUR, CLASS_LABEL, ISSUE_COLOUR, WHERE_LABEL, kes } from "../lib/format";
+import { DepthCurve } from "./charts";
+import { CLASS_UI, CLASS_LABEL, ISSUE_COLOUR, WHERE_LABEL, kes } from "../lib/format";
 
 const DENSITY_LABEL = { urban: "urban", peri_urban: "peri-urban", rural: "rural" } as const;
 
@@ -17,7 +18,7 @@ export default function BuildingCard({ b, rp, liveRp, onClose }: { b: BuildingPr
       <div className="flex items-start justify-between gap-3">
         <div>
           <div className="flex items-center gap-2">
-            <span className="h-2.5 w-2.5 rounded-sm" style={{ background: CLASS_COLOUR[b.cls] }} />
+            <span className="h-2.5 w-2.5 rounded-sm" style={{ background: CLASS_UI[b.cls] }} />
             <span className="font-display text-base font-semibold tracking-tight">{b.id}</span>
             {b.src === "ai" ? <span className="chip chip-ai">AI-ingested · {Math.round((b.confidence ?? 0) * 100)}%</span> : <span className="chip chip-synthetic">synthetic</span>}
           </div>
@@ -38,7 +39,7 @@ export default function BuildingCard({ b, rp, liveRp, onClose }: { b: BuildingPr
       </div>
 
       {issue && (
-        <div className="mt-3 rounded-lg border px-3 py-2 text-[13px]" style={{ borderColor: `${ISSUE_COLOUR}66`, background: `${ISSUE_COLOUR}14`, color: "#fecdd3" }}>
+        <div className="mt-3 rounded-lg border px-3 py-2 text-[13px] text-rose-200" style={{ borderColor: `${ISSUE_COLOUR}66`, background: `${ISSUE_COLOUR}14` }}>
           ⚠ Location issue: {WHERE_LABEL[b.where]}. Under review with the hackathon hosts.
         </div>
       )}
@@ -50,7 +51,12 @@ export default function BuildingCard({ b, rp, liveRp, onClose }: { b: BuildingPr
         <Metric label="Loss" value={kes(now.loss)} strong />
       </div>
 
-      <div className="mt-3 text-[12px] text-slate-400">
+      <div className="mt-3">
+        <div className="text-[10px] uppercase tracking-wider text-slate-500">Flood depth vs rarity at this building (JRC)</div>
+        <DepthCurve b={b} highlight={liveRp ? null : rp} />
+      </div>
+
+      <div className="mt-2 text-[12px] text-slate-400">
         Insured value <span className="text-slate-200">{kes(b.tiv)}</span> = {b.area} m² × KES {b.cost.toLocaleString("en-KE")}/m²
         {tivRatio > 5 && <span className="text-amber-300"> · CSV says {kes(b.tivCsv)} (×{tivRatio.toFixed(0)})</span>}
       </div>

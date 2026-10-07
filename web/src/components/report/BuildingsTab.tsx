@@ -5,7 +5,7 @@ import type { HousingClass, RP } from "../../lib/types";
 import { CLASSES, RPS } from "../../lib/types";
 import { buildingAt, severity } from "../../lib/engine";
 import { download, toCsv } from "../../lib/report";
-import { CLASS_COLOUR, CLASS_LABEL, WHERE_LABEL, kes } from "../../lib/format";
+import { CLASS_UI, CLASS_LABEL, WHERE_LABEL, kes } from "../../lib/format";
 
 type SortKey = "aal" | "loss" | "tiv" | "depth";
 const PAGE = 50;
@@ -97,7 +97,7 @@ export default function BuildingsTab({ buildings, res, portfolio, onPickBuilding
               <tr key={b.id} onClick={() => onPickBuilding(b)} className={`${tr} cursor-pointer text-slate-200 hover:bg-white/[0.04]`}>
                 <td className={td}>{b.id}</td>
                 <td className={td}>
-                  <span className="mr-1.5 inline-block h-2 w-2 rounded-sm" style={{ background: CLASS_COLOUR[b.cls] }} />
+                  <span className="mr-1.5 inline-block h-2 w-2 rounded-sm" style={{ background: CLASS_UI[b.cls] }} />
                   {CLASS_LABEL[b.cls]}
                 </td>
                 <td className={td}>{b.settlement && b.settlement !== "other" ? b.settlement : "—"}</td>

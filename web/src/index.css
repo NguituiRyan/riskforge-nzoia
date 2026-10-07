@@ -5,10 +5,74 @@
   --font-display: "Space Grotesk", "Inter", ui-sans-serif, sans-serif;
 }
 
-:root {
+:root,
+:root[data-theme="dark"] {
   color-scheme: dark;
   --ink: #050b14;
+  --text: #e2e8f0;
+  --text-muted: #94a3b8;
+  --glass-bg: rgb(6 12 24 / 0.74);
+  --glass-solid: #0b1424;
   --line: rgb(148 163 184 / 0.16);
+  --shadow: 0 18px 50px -18px rgb(0 0 0 / 0.75);
+  --scroll: rgb(148 163 184 / 0.25);
+  --chart-line: #7dd3fc;
+  --chart-fill: #38bdf8;
+  --chart-grid: rgb(148 163 184 / 0.15);
+  --chart-dot: #e0f2fe;
+  --chart-dot-stroke: #050b14;
+  --chart-mark: #fbbf24;
+  --chart-live: #22d3ee;
+  --chart-ref: #94a3b8;
+  /* construction classes in the interface (the 3D map keeps its own colours on the satellite image) */
+  --cls-informal_iron_sheet: #d95926;
+  --cls-semi_permanent: #199e70;
+  --cls-permanent_masonry: #c98500;
+  --cls-concrete_rcc: #9085e9;
+  --chip-real: 110 231 183;
+  --chip-synthetic: 252 211 77;
+  --chip-ai: 103 232 249;
+  --chip-assume: 196 181 253;
+}
+
+:root[data-theme="light"] {
+  color-scheme: light;
+  --ink: #e6ecf3;
+  --text: #0f172a;
+  --text-muted: #475569;
+  --glass-bg: rgb(255 255 255 / 0.86);
+  --glass-solid: #ffffff;
+  --line: rgb(15 23 42 / 0.12);
+  --shadow: 0 18px 44px -22px rgb(15 23 42 / 0.45);
+  --scroll: rgb(51 65 85 / 0.3);
+  --chart-line: #0284c7;
+  --chart-fill: #0ea5e9;
+  --chart-grid: rgb(51 65 85 / 0.14);
+  --chart-dot: #0369a1;
+  --chart-dot-stroke: #ffffff;
+  --chart-mark: #d97706;
+  --chart-live: #0891b2;
+  --chart-ref: #64748b;
+  --cls-informal_iron_sheet: #eb6834;
+  --cls-semi_permanent: #1baf7a;
+  --cls-permanent_masonry: #eda100;
+  --cls-concrete_rcc: #4a3aa7;
+  --chip-real: 4 120 87;
+  --chip-synthetic: 180 83 9;
+  --chip-ai: 14 116 144;
+  --chip-assume: 109 40 217;
+  /* white/black overlays swap so translucent surfaces stay visible */
+  --color-white: #0f172a;
+  --color-black: #ffffff;
+  /* generated from tailwindcss/theme.css: shades mirrored so light-on-dark text becomes dark-on-light */
+  --color-slate-50: oklch(12.9% 0.042 264.695); --color-slate-100: oklch(20.8% 0.042 265.755); --color-slate-200: oklch(27.9% 0.041 260.031); --color-slate-300: oklch(37.2% 0.044 257.287); --color-slate-400: oklch(44.6% 0.043 257.281); --color-slate-500: oklch(55.4% 0.046 257.417); --color-slate-600: oklch(70.4% 0.04 256.788); --color-slate-700: oklch(86.9% 0.022 252.894); --color-slate-800: oklch(92.9% 0.013 255.508); --color-slate-900: oklch(96.8% 0.007 247.896); --color-slate-950: oklch(98.4% 0.003 247.858);
+  --color-sky-50: oklch(29.3% 0.066 243.157); --color-sky-100: oklch(39.1% 0.09 240.876); --color-sky-200: oklch(44.3% 0.11 240.79); --color-sky-300: oklch(50% 0.134 242.749); --color-sky-400: oklch(58.8% 0.158 241.966); --color-sky-500: oklch(68.5% 0.169 237.323); --color-sky-600: oklch(74.6% 0.16 232.661); --color-sky-700: oklch(82.8% 0.111 230.318); --color-sky-800: oklch(90.1% 0.058 230.902); --color-sky-900: oklch(95.1% 0.026 236.824); --color-sky-950: oklch(97.7% 0.013 236.62);
+  --color-cyan-50: oklch(30.2% 0.056 229.695); --color-cyan-100: oklch(39.8% 0.07 227.392); --color-cyan-200: oklch(45% 0.085 224.283); --color-cyan-300: oklch(52% 0.105 223.128); --color-cyan-400: oklch(60.9% 0.126 221.723); --color-cyan-500: oklch(71.5% 0.143 215.221); --color-cyan-600: oklch(78.9% 0.154 211.53); --color-cyan-700: oklch(86.5% 0.127 207.078); --color-cyan-800: oklch(91.7% 0.08 205.041); --color-cyan-900: oklch(95.6% 0.045 203.388); --color-cyan-950: oklch(98.4% 0.019 200.873);
+  --color-amber-50: oklch(27.9% 0.077 45.635); --color-amber-100: oklch(41.4% 0.112 45.904); --color-amber-200: oklch(47.3% 0.137 46.201); --color-amber-300: oklch(55.5% 0.163 48.998); --color-amber-400: oklch(66.6% 0.179 58.318); --color-amber-500: oklch(76.9% 0.188 70.08); --color-amber-600: oklch(82.8% 0.189 84.429); --color-amber-700: oklch(87.9% 0.169 91.605); --color-amber-800: oklch(92.4% 0.12 95.746); --color-amber-900: oklch(96.2% 0.059 95.617); --color-amber-950: oklch(98.7% 0.022 95.277);
+  --color-emerald-50: oklch(26.2% 0.051 172.552); --color-emerald-100: oklch(37.8% 0.077 168.94); --color-emerald-200: oklch(43.2% 0.095 166.913); --color-emerald-300: oklch(50.8% 0.118 165.612); --color-emerald-400: oklch(59.6% 0.145 163.225); --color-emerald-500: oklch(69.6% 0.17 162.48); --color-emerald-600: oklch(76.5% 0.177 163.223); --color-emerald-700: oklch(84.5% 0.143 164.978); --color-emerald-800: oklch(90.5% 0.093 164.15); --color-emerald-900: oklch(95% 0.052 163.051); --color-emerald-950: oklch(97.9% 0.021 166.113);
+  --color-rose-50: oklch(27.1% 0.105 12.094); --color-rose-100: oklch(41% 0.159 10.272); --color-rose-200: oklch(45.5% 0.188 13.697); --color-rose-300: oklch(51.4% 0.222 16.935); --color-rose-400: oklch(58.6% 0.253 17.585); --color-rose-500: oklch(64.5% 0.246 16.439); --color-rose-600: oklch(71.2% 0.194 13.428); --color-rose-700: oklch(81% 0.117 11.638); --color-rose-800: oklch(89.2% 0.058 10.001); --color-rose-900: oklch(94.1% 0.03 12.58); --color-rose-950: oklch(96.9% 0.015 12.422);
+  --color-violet-50: oklch(28.3% 0.141 291.089); --color-violet-100: oklch(38% 0.189 293.745); --color-violet-200: oklch(43.2% 0.232 292.759); --color-violet-300: oklch(49.1% 0.27 292.581); --color-violet-400: oklch(54.1% 0.281 293.009); --color-violet-500: oklch(60.6% 0.25 292.717); --color-violet-600: oklch(70.2% 0.183 293.541); --color-violet-700: oklch(81.1% 0.111 293.571); --color-violet-800: oklch(89.4% 0.057 293.283); --color-violet-900: oklch(94.3% 0.029 294.588); --color-violet-950: oklch(96.9% 0.016 293.756);
+  --color-orange-50: oklch(26.6% 0.079 36.259); --color-orange-100: oklch(40.8% 0.123 38.172); --color-orange-200: oklch(47% 0.157 37.304); --color-orange-300: oklch(55.3% 0.195 38.402); --color-orange-400: oklch(64.6% 0.222 41.116); --color-orange-500: oklch(70.5% 0.213 47.604); --color-orange-600: oklch(75% 0.183 55.934); --color-orange-700: oklch(83.7% 0.128 66.29); --color-orange-800: oklch(90.1% 0.076 70.697); --color-orange-900: oklch(95.4% 0.038 75.164); --color-orange-950: oklch(98% 0.016 73.684);
 }
 
 html,
@@ -20,22 +84,33 @@ body,
 body {
   margin: 0;
   background: var(--ink);
+  color: var(--text);
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
   overscroll-behavior: none;
 }
 
 .glass {
-  background: rgb(6 12 24 / 0.74);
+  background: var(--glass-bg);
   backdrop-filter: blur(16px) saturate(140%);
   -webkit-backdrop-filter: blur(16px) saturate(140%);
   border: 1px solid var(--line);
-  box-shadow: 0 18px 50px -18px rgb(0 0 0 / 0.75);
+  box-shadow: var(--shadow);
 }
 
 .scroll-thin {
   scrollbar-width: thin;
-  scrollbar-color: rgb(148 163 184 / 0.25) transparent;
+  scrollbar-color: var(--scroll) transparent;
+}
+
+/* native dropdown lists ignore the page styles: give options the theme's surface and text */
+select {
+  color-scheme: inherit;
+}
+select option,
+select optgroup {
+  background-color: var(--glass-solid);
+  color: var(--text);
 }
 
 .chip {
@@ -48,24 +123,24 @@ body {
   white-space: nowrap;
 }
 .chip-real {
-  color: #6ee7b7;
-  border-color: rgb(110 231 183 / 0.35);
-  background: rgb(110 231 183 / 0.08);
+  color: rgb(var(--chip-real));
+  border-color: rgb(var(--chip-real) / 0.35);
+  background: rgb(var(--chip-real) / 0.08);
 }
 .chip-synthetic {
-  color: #fcd34d;
-  border-color: rgb(252 211 77 / 0.35);
-  background: rgb(252 211 77 / 0.08);
+  color: rgb(var(--chip-synthetic));
+  border-color: rgb(var(--chip-synthetic) / 0.35);
+  background: rgb(var(--chip-synthetic) / 0.08);
 }
 .chip-ai {
-  color: #67e8f9;
-  border-color: rgb(103 232 249 / 0.4);
-  background: rgb(103 232 249 / 0.1);
+  color: rgb(var(--chip-ai));
+  border-color: rgb(var(--chip-ai) / 0.4);
+  background: rgb(var(--chip-ai) / 0.1);
 }
 .chip-assume {
-  color: #c4b5fd;
-  border-color: rgb(196 181 253 / 0.35);
-  background: rgb(196 181 253 / 0.08);
+  color: rgb(var(--chip-assume));
+  border-color: rgb(var(--chip-assume) / 0.35);
+  background: rgb(var(--chip-assume) / 0.08);
 }
 
 .toggle {
@@ -215,9 +290,9 @@ th.text-right {
   }
 }
 
-/* ---- MapLibre controls, dark ---- */
+/* ---- MapLibre controls, themed ---- */
 .maplibregl-ctrl-group {
-  background: rgb(6 12 24 / 0.8) !important;
+  background: var(--glass-bg) !important;
   border: 1px solid var(--line);
   box-shadow: none !important;
 }
@@ -228,15 +303,19 @@ th.text-right {
   filter: invert(1) opacity(0.8);
 }
 .maplibregl-ctrl.maplibregl-ctrl-attrib {
-  background: rgb(6 12 24 / 0.82) !important;
-  color: #94a3b8 !important;
+  background: var(--glass-bg) !important;
+  color: var(--text-muted) !important;
 }
 .maplibregl-ctrl-attrib-inner,
 .maplibregl-ctrl-attrib a {
-  color: #cbd5e1 !important;
+  color: var(--text) !important;
 }
 .maplibregl-ctrl-attrib-button {
   filter: invert(1);
+}
+:root[data-theme="light"] .maplibregl-ctrl-group button .maplibregl-ctrl-icon,
+:root[data-theme="light"] .maplibregl-ctrl-attrib-button {
+  filter: none;
 }
 
 @media (max-width: 1023px) {

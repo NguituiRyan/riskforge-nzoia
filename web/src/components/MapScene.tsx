@@ -4,6 +4,7 @@ import workerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url";
 import type { ExpressionSpecification, StyleSpecification } from "@maplibre/maplibre-gl-style-spec";
 import type { Feature, FeatureCollection, Point, Polygon } from "geojson";
 import type { BuildingProps, ColourMode, Place, PortfolioView } from "../lib/types";
+import type { Theme } from "../lib/theme";
 import { RPS } from "../lib/types";
 import { CURVES, HUIZINGA_AFRICA, ONSET_RP } from "../lib/engine";
 import { CLASS_COLOUR, DAMAGE_STOPS, DEPTH_STOPS, ISSUE_COLOUR } from "../lib/format";
@@ -34,7 +35,37 @@ function fit(v: (typeof VIEWS)[keyof typeof VIEWS]) {
   return narrow ? { ...v, zoom: v.zoom - 1.15, padding: { top: 110, bottom: 200, left: 0, right: 0 } } : v;
 }
 
-const STYLE: StyleSpecification = {
+/** what changes on the map between dark and light mode (the satellite image stays; sky, fog and grading change) */
+const LOOK = {
+  dark: {
+    background: "#050b14",
+    brightness: 0.78,
+    saturation: -0.3,
+    shadow: "#020617",
+    highlight: "#94a3b8",
+    sky: { "sky-color": "#0b1d3a", "horizon-color": "#1f3b63", "fog-color": "#0a1424" },
+  },
+  light: {
+    background: "#dbe4ee",
+    brightness: 0.97,
+    saturation: -0.08,
+    shadow: "#334155",
+    highlight: "#ffffff",
+    sky: { "sky-color": "#8cc2f2", "horizon-color": "#e8f2fb", "fog-color": "#eef4fa" },
+  },
+} as const;
+
+function skyFor(theme: Theme): StyleSpecification["sky"] {
+  return {
+    ...LOOK[theme].sky,
+    "sky-horizon-blend": 0.6,
+    "horizon-fog-blend": 0.55,
+    "fog-ground-blend": 0.82,
+    "atmosphere-blend": ["interpolate", ["linear"], ["zoom"], 0, 1, 5, 1, 7.5, 0],
+  };
+}
+
+const styleFor = (theme: Theme): StyleSpecification => ({
   version: 8,
   projection: { type: "globe" },
   sources: {
@@ -62,26 +93,18 @@ const STYLE: StyleSpecification = {
     },
   },
   layers: [
-    { id: "bg", type: "background", paint: { "background-color": "#050b14" } },
-    { id: "satellite", type: "raster", source: "satellite", paint: { "raster-saturation": -0.3, "raster-brightness-max": 0.78, "raster-contrast": 0.08 } },
+    { id: "bg", type: "background", paint: { "background-color": LOOK[theme].background } },
+    { id: "satellite", type: "raster", source: "satellite", paint: { "raster-saturation": LOOK[theme].saturation, "raster-brightness-max": LOOK[theme].brightness, "raster-contrast": 0.08 } },
     {
       id: "hillshade",
       type: "hillshade",
       source: "hillDem",
-      paint: { "hillshade-exaggeration": 0.35, "hillshade-shadow-color": "#020617", "hillshade-highlight-color": "#94a3b8" },
+      paint: { "hillshade-exaggeration": 0.35, "hillshade-shadow-color": LOOK[theme].shadow, "hillshade-highlight-color": LOOK[theme].highlight },
     },
   ],
-  sky: {
-    "sky-color": "#0b1d3a",
-    "horizon-color": "#1f3b63",
-    "fog-color": "#0a1424",
-    "sky-horizon-blend": 0.6,
-    "horizon-fog-blend": 0.55,
-    "fog-ground-blend": 0.82,
-    "atmosphere-blend": ["interpolate", ["linear"], ["zoom"], 0, 1, 5, 1, 7.5, 0],
-  },
+  sky: skyFor(theme),
   terrain: { source: "terrainDem", exaggeration: TERRAIN_EXAGGERATION },
-};
+});
 
 const num = (key: string): ExpressionSpecification => ["to-number", ["get", key], 0];
 
@@ -161,11 +184,12 @@ interface Props {
   selectedId: string | null;
   camera: { preset: CameraPreset; nonce: number } | null;
   nodeState: NodeMarkerState;
+  theme: Theme;
   onSelect: (b: BuildingProps | null) => void;
 }
 
 export default function MapScene(props: Props) {
-  const { buildings, places, waterRp, live, colourMode, showIssues, portfolio, selectedId, camera, nodeState } = props;
+  const { buildings, places, waterRp, live, colourMode, showIssues, portfolio, selectedId, camera, nodeState, theme } = props;
   const container = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
   const [ready, setReady] = useState<maplibregl.Map | null>(null); // the map instance whose style has loaded
@@ -174,6 +198,7 @@ export default function MapScene(props: Props) {
   const onSelect = useRef(props.onSelect);
   onSelect.current = props.onSelect;
   const initialBuildings = useRef(buildings);
+  const initialTheme = useRef(theme);
   const buildingsRef = useRef(buildings);
   buildingsRef.current = buildings;
 
@@ -182,7 +207,7 @@ export default function MapScene(props: Props) {
     if (!container.current) return;
     const map = new maplibregl.Map({
       container: container.current,
-      style: STYLE,
+      style: styleFor(initialTheme.current),
       center: [24, 3],
       zoom: 1.7,
       pitch: 0,
@@ -422,6 +447,19 @@ export default function MapScene(props: Props) {
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
   }, [showIssues, portfolio, ready]);
+
+  // ---- light / dark mode on the map ----
+  useEffect(() => {
+    const map = ready;
+    if (!map) return;
+    const l = LOOK[theme];
+    map.setSky(skyFor(theme) as NonNullable<StyleSpecification["sky"]>);
+    map.setPaintProperty("bg", "background-color", l.background);
+    map.setPaintProperty("satellite", "raster-brightness-max", l.brightness);
+    map.setPaintProperty("satellite", "raster-saturation", l.saturation);
+    map.setPaintProperty("hillshade", "hillshade-shadow-color", l.shadow);
+    map.setPaintProperty("hillshade", "hillshade-highlight-color", l.highlight);
+  }, [theme, ready]);
 
   // ---- river node marker shows the live reading ----
   useEffect(() => {

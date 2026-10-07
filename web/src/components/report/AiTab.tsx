@@ -5,7 +5,7 @@ import type { BuildingProps, HousingClass } from "../../lib/types";
 import { RPS } from "../../lib/types";
 import { buildingAt, hazardAt, runPortfolio } from "../../lib/engine";
 import { briefingSummary, resolvePath } from "../../lib/report";
-import { CLASS_COLOUR, CLASS_LABEL, kes } from "../../lib/format";
+import { CLASS_UI, CLASS_LABEL, kes } from "../../lib/format";
 
 interface ParsedRow {
   description: string;
@@ -208,7 +208,7 @@ export default function AiTab(p: ReportProps) {
                             </td>
                             <td className={td}>{bs.length ? <span className="text-emerald-300">✓ {row.place}</span> : <span className="text-rose-300">✗ not placed</span>}</td>
                             <td className={td}>
-                              <span className="mr-1 inline-block h-2 w-2 rounded-sm" style={{ background: CLASS_COLOUR[row.housing_class] }} />
+                              <span className="mr-1 inline-block h-2 w-2 rounded-sm" style={{ background: CLASS_UI[row.housing_class] }} />
                               {CLASS_LABEL[row.housing_class]}
                             </td>
                             <td className={`${td} text-right`}>{row.count}</td>

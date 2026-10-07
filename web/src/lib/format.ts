@@ -15,11 +15,20 @@ export const CLASS_LABEL: Record<HousingClass, string> = {
   concrete_rcc: "Concrete / RCC",
 };
 
+/** class colours on the 3D map (dark-surface steps of a validated categorical palette: orange, aqua, yellow, violet) */
 export const CLASS_COLOUR: Record<HousingClass, string> = {
-  informal_iron_sheet: "#fbbf24",
-  semi_permanent: "#34d399",
-  permanent_masonry: "#e2e8f0",
-  concrete_rcc: "#a78bfa",
+  informal_iron_sheet: "#d95926",
+  semi_permanent: "#199e70",
+  permanent_masonry: "#c98500",
+  concrete_rcc: "#9085e9",
+};
+
+/** class colours for the interface (theme-aware CSS variables); the map keeps CLASS_COLOUR on the imagery */
+export const CLASS_UI: Record<HousingClass, string> = {
+  informal_iron_sheet: "var(--cls-informal_iron_sheet)",
+  semi_permanent: "var(--cls-semi_permanent)",
+  permanent_masonry: "var(--cls-permanent_masonry)",
+  concrete_rcc: "var(--cls-concrete_rcc)",
 };
 
 export const WHERE_LABEL: Record<Where, string> = {

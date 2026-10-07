@@ -11,6 +11,7 @@ import { RPS } from "./lib/types";
 import { buildFloodGrid, runPortfolio, scenario, type FloodGrid } from "./lib/engine";
 import { alertFor, rpForStage, type NodeData, type NodeReading, type TriggerTerms } from "./lib/node";
 import { squareFeature } from "./lib/report";
+import { applyTheme, initialTheme, type Theme } from "./lib/theme";
 
 async function getJson<T>(url: string): Promise<T> {
   const res = await fetch(url);
@@ -47,6 +48,9 @@ export default function App() {
   const [aiRows, setAiRows] = useState<BuildingProps[]>([]);
   const [trigger, setTrigger] = useState<TriggerTerms>({ triggerStage: 4.8, payout: 50_000_000, load: 0.4 });
   const [report, setReport] = useState<{ open: boolean; tab: ReportTab }>({ open: false, tab: "summary" });
+  const [theme, setTheme] = useState<Theme>(initialTheme);
+  const toggleTheme = useCallback(() => setTheme((t) => (t === "dark" ? "light" : "dark")), []);
+  useEffect(() => applyTheme(theme), [theme]);
   const root = useRef<HTMLDivElement>(null);
   const rpRef = useRef(rp);
   rpRef.current = rp;
@@ -155,7 +159,7 @@ export default function App() {
     );
 
   return (
-    <div ref={root} className="relative h-dvh w-full overflow-hidden bg-[#050b14] text-slate-100">
+    <div ref={root} className="relative h-dvh w-full overflow-hidden bg-[var(--ink)] text-slate-100">
       {data && mapFc && (
         <MapScene
           buildings={mapFc}
@@ -168,6 +172,7 @@ export default function App() {
           selectedId={selected?.id ?? null}
           camera={camera}
           nodeState={nodeState}
+          theme={theme}
           onSelect={setSelected}
         />
       )}
@@ -183,7 +188,7 @@ export default function App() {
           {/* left column: brand + mode + controls / live node (desktop) */}
           <div className="pointer-events-none absolute left-0 top-0 flex max-h-full w-full flex-col gap-3 p-3 sm:w-[372px] sm:p-4">
             <div className="pointer-events-auto pr-12 sm:pr-0">
-              <Brand stats={data.stats} portfolio={portfolio} res={res} aiCount={aiRows.length} onReport={() => openReport("summary")} />
+              <Brand stats={data.stats} portfolio={portfolio} res={res} aiCount={aiRows.length} onReport={() => openReport("summary")} theme={theme} onToggleTheme={toggleTheme} />
             </div>
             <div className="glass panel scroll-thin pointer-events-auto hidden min-h-0 overflow-y-auto rounded-2xl p-4 lg:block">{panelBody(false)}</div>
           </div>
@@ -227,6 +232,8 @@ export default function App() {
           {report.open && (
             <Report
               tab={report.tab}
+              theme={theme}
+              onToggleTheme={toggleTheme}
               setTab={(tab) => setReport({ open: true, tab })}
               onClose={() => setReport((r) => ({ ...r, open: false }))}
               stats={data.stats}
