@@ -7,8 +7,9 @@
     - USB mode (always on): prints one JSON line every 500 ms at 115200 baud:
         {"node":"RF-NZ-01","seq":42,"dist_cm":20.6,"level_cm":9.4,"ok":true}
       The Risk Forge dashboard reads these straight from the browser (Web Serial, Chrome/Edge): Live river node -> USB node.
-    - Wi-Fi mode (USE_WIFI 1): every 10 s POSTs an HMAC-SHA256-signed reading to /api/node and lights the LED with the
-      alert colour the server returns. This is the same path a field node would use over GSM.
+    - Wi-Fi mode (turns on when secrets.h exists - copy secrets.example.h): every 3 s POSTs an HMAC-SHA256-signed
+      reading to /api/node. The dashboard's Live river node -> Wi-Fi view shows it on any laptop or phone.
+      This is the same path a field node would use over GSM.
 
   Wiring (see hardware/README.md)
     HC-SR04 VCC -> 5V (VIN)      HC-SR04 GND -> GND
@@ -23,17 +24,22 @@
 #include <Arduino.h>
 #include <Preferences.h>
 
-#define USE_WIFI 0  // set to 1 for signed HTTPS posts to the Risk Forge API
+// Wi-Fi credentials and the signing key live in secrets.h (git-ignored). No secrets.h = USB-only node.
+#if __has_include("secrets.h")
+#include "secrets.h"
+#define USE_WIFI 1
+#else
+#define USE_WIFI 0
+#endif
 
 #if USE_WIFI
 #include <WiFi.h>
 #include <WiFiClientSecure.h>
 #include <HTTPClient.h>
 #include "mbedtls/md.h"
-const char* WIFI_SSID = "your-hotspot";
-const char* WIFI_PASS = "your-password";
-const char* API_URL = "https://riskforge-nzoia.vercel.app/api/node";
-const char* NODE_SECRET = "paste-NODE_SECRET-from-.env";  // never commit the real value
+const unsigned long POST_EVERY_MS = 3000;
+WiFiClientSecure tls;  // kept open between posts: one TLS handshake instead of one per reading
+HTTPClient http;
 #endif
 
 const char* NODE_ID = "RF-NZ-01";
@@ -50,7 +56,7 @@ const float ALERT_M = 2.8, WARNING_M = 4.2, DANGER_M = 5.5;
 Preferences prefs;
 float emptyDistCm = 30.0;  // distance from the sensor to the empty tank floor; overwritten by calibration
 uint32_t seq = 0;
-unsigned long lastPrint = 0, lastPost = 0;
+unsigned long lastPrint = 0, lastPost = 0, lastWifiCheck = 0;
 float lastLevel = 0;
 
 float pingCm() {
@@ -121,16 +127,27 @@ String hmacHex(const char* key, const String& msg) {
   return String(hex);
 }
 
+void wifiStatus() {
+  // report joins and drops once, so the serial log shows what the node is doing
+  static int last = -1;
+  int now = WiFi.status() == WL_CONNECTED;
+  if (now == last) return;
+  last = now;
+  if (now) Serial.printf("{\"event\":\"wifi\",\"ok\":true,\"ip\":\"%s\",\"rssi\":%d}\n", WiFi.localIP().toString().c_str(), WiFi.RSSI());
+  else Serial.printf("{\"event\":\"wifi\",\"ok\":false,\"ssid\":\"%s\"}\n", WIFI_SSID);
+}
+
 void postReading(float levelCm) {
   if (WiFi.status() != WL_CONNECTED) return;
   time_t ts = time(nullptr);
+  if (ts < 1700000000) {  // clock not set from NTP yet: the server would refuse the timestamp
+    Serial.println("{\"event\":\"post\",\"skipped\":\"waiting for network time\"}");
+    return;
+  }
   String level = String(levelCm, 1);  // one decimal, matching the server's canonical message
   String msg = String(NODE_ID) + "|" + String(seq) + "|" + String((long)ts) + "|" + level;
   String body = "{\"node\":\"" + String(NODE_ID) + "\",\"seq\":" + String(seq) + ",\"ts\":" + String((long)ts) + ",\"level_cm\":" + level + ",\"sig\":\"" + hmacHex(NODE_SECRET, msg) + "\"}";
-  WiFiClientSecure client;
-  client.setInsecure();  // demo only: pin the server certificate in production
-  HTTPClient http;
-  http.begin(client, API_URL);
+  http.begin(tls, API_URL);
   http.addHeader("Content-Type", "application/json");
   int code = http.POST(body);
   String reply = http.getString();
@@ -152,8 +169,14 @@ void setup() {
   emptyDistCm = prefs.getFloat("empty", emptyDistCm);
   Serial.printf("{\"event\":\"boot\",\"node\":\"%s\",\"empty_cm\":%.1f}\n", NODE_ID, emptyDistCm);
 #if USE_WIFI
+  tls.setInsecure();  // demo only: pin the server certificate in production
+  http.setReuse(true);
+  WiFi.mode(WIFI_STA);
+  WiFi.setAutoReconnect(true);
   WiFi.begin(WIFI_SSID, WIFI_PASS);
   configTime(0, 0, "pool.ntp.org", "time.google.com");  // signed readings carry a real timestamp
+#else
+  Serial.println("{\"event\":\"wifi\",\"ok\":false,\"note\":\"USB only - add secrets.h for Wi-Fi\"}");
 #endif
 }
 
@@ -176,7 +199,11 @@ void loop() {
   showLocalAlert(lastLevel * STAGE_PER_CM);
 
 #if USE_WIFI
-  if (millis() - lastPost >= 10000) {
+  if (millis() - lastWifiCheck >= 1000) {
+    lastWifiCheck = millis();
+    wifiStatus();
+  }
+  if (millis() - lastPost >= POST_EVERY_MS) {
     lastPost = millis();
     postReading(lastLevel);
   }

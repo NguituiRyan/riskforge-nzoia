@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import AnimatedValue from "./AnimatedValue";
 import type { ScenarioResult } from "../lib/engine";
-import { alertFor, flowForRp, rpForStage, type LiveSource, type NodeData, type NodeReading, type TriggerTerms } from "../lib/node";
+import { alertFor, flowForRp, rpForStage, type LiveSource, type NodeCloudState, type NodeData, type NodeReading, type TriggerTerms } from "../lib/node";
 import { kes } from "../lib/format";
 
 // minimal Web Serial typings (Chrome / Edge); not in TypeScript's DOM lib yet
@@ -15,6 +15,8 @@ interface SerialLike {
 }
 
 const STAGE_MAX = 7.5;
+const POLL_MS = 2000; // dashboard checks the Wi-Fi node's state this often
+const ONLINE_S = 20; // the node posts every 3 s; silence longer than this means it is off or out of range
 const fmtKes = (n: number) => kes(n);
 const fmtInt = (n: number) => Math.round(n).toLocaleString("en-KE");
 
@@ -40,6 +42,9 @@ export default function LivePanel({ nd, reading, onReading, scenario, trigger, o
   scaleRef.current = scale;
   const emit = useRef(onReading);
   emit.current = onReading;
+  const [cloud, setCloud] = useState<NodeCloudState | null>(null);
+  const [cloudErr, setCloudErr] = useState<string | null>(null);
+  const lastCloudKey = useRef("");
 
   // simulate: slider drives the stage
   useEffect(() => {
@@ -66,6 +71,39 @@ export default function LivePanel({ nd, reading, onReading, scenario, trigger, o
     }, 280);
     return () => window.clearInterval(id);
   }, [source, playing, series.length]);
+
+  // Wi-Fi: the node posts signed readings to /api/node; poll the verified state the server keeps
+  const nodeId = nd.node.id;
+  useEffect(() => {
+    if (source !== "wifi") return;
+    let stop = false;
+    lastCloudKey.current = "";
+    const poll = async () => {
+      if (document.hidden) return;
+      try {
+        const res = await fetch(`/api/node?node=${encodeURIComponent(nodeId)}`, { cache: "no-store" });
+        if (!res.ok) throw new Error(`server ${res.status}`);
+        const j = (await res.json()) as NodeCloudState;
+        if (stop) return;
+        setCloud(j);
+        setCloudErr(null);
+        const l = j.latest;
+        const key = l ? `${l.ts}:${l.seq}` : "";
+        if (l && key !== lastCloudKey.current && (j.age_s ?? Infinity) <= ONLINE_S) {
+          lastCloudKey.current = key;
+          emit.current({ stage: Math.max(l.level_cm, 0) * scaleRef.current, at: Date.now(), source: "wifi", levelCm: l.level_cm, seq: l.seq, raw: JSON.stringify({ node: j.node, seq: l.seq, ts: l.ts, level_cm: l.level_cm, verified: true }) });
+        }
+      } catch (e) {
+        if (!stop) setCloudErr(e instanceof Error ? e.message : String(e));
+      }
+    };
+    void poll();
+    const id = window.setInterval(poll, POLL_MS);
+    return () => {
+      stop = true;
+      window.clearInterval(id);
+    };
+  }, [source, nodeId]);
 
   async function connectUsb() {
     const serial = (navigator as unknown as { serial?: SerialLike }).serial;
@@ -139,8 +177,8 @@ export default function LivePanel({ nd, reading, onReading, scenario, trigger, o
         <span className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ring-1 ${toneClass}`}>{alert.label}</span>
       </div>
 
-      <div className="grid grid-cols-3 gap-1 rounded-xl bg-white/[0.04] p-1">
-        {(["simulate", "replay", "usb"] as LiveSource[]).map((s) => (
+      <div className="grid grid-cols-4 gap-1 rounded-xl bg-white/[0.04] p-1">
+        {(["simulate", "replay", "usb", "wifi"] as LiveSource[]).map((s) => (
           <button
             key={s}
             onClick={() => {
@@ -148,9 +186,9 @@ export default function LivePanel({ nd, reading, onReading, scenario, trigger, o
               setPlaying(false);
             }}
             aria-pressed={source === s}
-            className={`rounded-lg px-2 py-1.5 text-[12px] transition ${source === s ? "bg-white/[0.12] text-white" : "text-slate-400 hover:text-slate-200"}`}
+            className={`rounded-lg px-1 py-1.5 text-[12px] transition ${source === s ? "bg-white/[0.12] text-white" : "text-slate-400 hover:text-slate-200"}`}
           >
-            {s === "simulate" ? "Simulate" : s === "replay" ? "Replay 2020" : "USB node"}
+            {s === "simulate" ? "Simulate" : s === "replay" ? "Replay" : s === "usb" ? "USB" : "Wi-Fi"}
           </button>
         ))}
       </div>
@@ -207,15 +245,12 @@ export default function LivePanel({ nd, reading, onReading, scenario, trigger, o
             </button>
           )}
           {usb.state === "error" && <div className="text-rose-300">{usb.msg}</div>}
-          <label className="flex items-center justify-between text-slate-400">
-            Tank scale: 1 cm =
-            <span>
-              <input type="number" step={0.05} min={0.05} value={scale} onChange={(e) => setScale(Number(e.target.value) || 0.3)} className="w-16 rounded bg-white/[0.06] px-1.5 py-0.5 text-right text-slate-100" /> m of river
-            </span>
-          </label>
+          <TankScale scale={scale} setScale={setScale} />
           {reading?.raw && <code className="block truncate rounded bg-black/40 px-2 py-1 text-[10px] text-slate-400">{reading.raw}</code>}
         </div>
       )}
+
+      {source === "wifi" && <WifiStatus cloud={cloud} error={cloudErr} scale={scale} setScale={setScale} />}
 
       <div className="flex gap-3">
         <Gauge nd={nd} stage={stage} trigger={trigger.triggerStage} />
@@ -292,5 +327,76 @@ function Gauge({ nd, stage, trigger }: { nd: NodeData; stage: number; trigger: n
       ))}
       <rect x={14} y={0} width={18} height={H} fill="none" stroke="rgb(148 163 184 / .3)" rx={3} />
     </svg>
+  );
+}
+
+function TankScale({ scale, setScale }: { scale: number; setScale: (n: number) => void }) {
+  return (
+    <label className="flex items-center justify-between text-slate-400">
+      Tank scale: 1 cm =
+      <span>
+        <input type="number" step={0.05} min={0.05} value={scale} onChange={(e) => setScale(Number(e.target.value) || 0.3)} className="w-16 rounded bg-white/[0.06] px-1.5 py-0.5 text-right text-slate-100" /> m of river
+      </span>
+    </label>
+  );
+}
+
+const ago = (s: number) => (s < 60 ? `${Math.round(s)} s` : s < 3600 ? `${Math.round(s / 60)} min` : `${Math.round(s / 3600)} h`);
+
+/** connection state of the Wi-Fi node, its recent trace and any readings the server refused */
+function WifiStatus({ cloud, error, scale, setScale }: { cloud: NodeCloudState | null; error: string | null; scale: number; setScale: (n: number) => void }) {
+  const l = cloud?.latest ?? null;
+  const age = cloud?.age_s ?? null;
+  const online = l !== null && age !== null && age <= ONLINE_S;
+  return (
+    <div className="space-y-2 text-[12px]">
+      {error && !cloud ? (
+        <div className="text-rose-300">Can't reach the server ({error}).</div>
+      ) : online ? (
+        <div className="flex items-center gap-2 text-emerald-300">
+          <span className="h-2 w-2 shrink-0 animate-pulse rounded-full bg-emerald-400" />
+          <span>Online over Wi-Fi · reading {ago(age!)} ago · signature verified</span>
+        </div>
+      ) : l ? (
+        <div className="flex items-center gap-2 text-amber-200">
+          <span className="h-2 w-2 shrink-0 rounded-full bg-amber-400" /> Offline · last reading {ago(age ?? 0)} ago
+        </div>
+      ) : (
+        <div className="flex items-start gap-2 text-slate-400">
+          <span className="mt-1 h-2 w-2 shrink-0 animate-pulse rounded-full bg-slate-500" />
+          {cloud ? "Waiting for the node. Power it on with Wi-Fi and it appears here within seconds." : "Connecting to the server…"}
+        </div>
+      )}
+      {cloud && cloud.history.length > 1 && <Trace history={cloud.history} />}
+      {cloud && cloud.rejected > 0 && (
+        <div className="rounded-lg bg-rose-500/10 px-2.5 py-1.5 text-[11px] text-rose-200 ring-1 ring-rose-400/25">
+          {cloud.rejected} forged or replayed {cloud.rejected === 1 ? "reading" : "readings"} rejected
+          {cloud.last_rejected ? ` · last ${ago((cloud.now - cloud.last_rejected.at) / 1000)} ago` : ""}
+        </div>
+      )}
+      <TankScale scale={scale} setScale={setScale} />
+      <p className="text-[11px] leading-snug text-slate-500">Same view on any phone: open this page, Live river node, Wi-Fi.</p>
+    </div>
+  );
+}
+
+/** the node's last few minutes of water level, as the server received them */
+function Trace({ history }: { history: [number, number][] }) {
+  const W = 300;
+  const H = 40;
+  const t0 = history[0][0];
+  const t1 = history[history.length - 1][0];
+  const top = Math.max(10, ...history.map(([, v]) => v)) * 1.1;
+  const pts = history.map(([t, v]) => `${(((t - t0) / Math.max(t1 - t0, 1)) * W).toFixed(1)},${(H - (v / top) * H).toFixed(1)}`).join(" ");
+  return (
+    <div>
+      <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" className="h-10 w-full" role="img" aria-label="Water level over the last few minutes">
+        <polyline points={pts} fill="none" stroke="var(--chart-line)" strokeWidth={1.5} vectorEffect="non-scaling-stroke" />
+      </svg>
+      <div className="flex justify-between text-[10px] text-slate-500">
+        <span>{ago((t1 - t0) / 1000)} ago</span>
+        <span>now · {history[history.length - 1][1].toFixed(1)} cm in the tank</span>
+      </div>
+    </div>
   );
 }

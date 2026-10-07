@@ -10,7 +10,18 @@ export interface NodeData {
   replay: { title: string; peakDate: string; series: { date: string; q: number; rp: number; stage: number }[] };
 }
 
-export type LiveSource = "simulate" | "replay" | "usb";
+export type LiveSource = "simulate" | "replay" | "usb" | "wifi";
+
+/** GET /api/node?node=… - the Wi-Fi node's live state as the server last verified it */
+export interface NodeCloudState {
+  node: string;
+  now: number;
+  age_s: number | null;
+  latest: { seq: number; ts: number; level_cm: number; stage_m: number; return_period: number | null; alert: string; received: number } | null;
+  history: [number, number][];
+  rejected: number;
+  last_rejected: { at: number; reason: string } | null;
+}
 
 export interface NodeReading {
   stage: number; // m at Rwambwa

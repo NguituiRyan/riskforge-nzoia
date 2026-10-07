@@ -35,3 +35,6 @@ runs/
 *.sqlite
 .DS_Store
 Thumbs.db
+
+# river node Wi-Fi password and signing key
+hardware/**/secrets.h
