@@ -12,7 +12,7 @@ water in the tank (cm)  --Wi-Fi, signed-->  /api/node (verifies)  -->  dashboard
 |---|---|---|
 | ESP32 DevKit (any) | Microcontroller with Wi-Fi | |
 | HC-SR04 ultrasonic | Water level | Minimum range 2 cm and a narrow beam, so it beats the waterproof JSN-SR04T in a small tank |
-| 1 kΩ + 2 kΩ resistors | Echo voltage divider | The HC-SR04 echo is 5 V; ESP32 pins are 3.3 V |
+| 3 × 1 kΩ resistors | Echo voltage divider (1 kΩ, then 2 kΩ made from two 1 kΩ in series) | The HC-SR04 echo is 5 V; ESP32 pins are 3.3 V. Shops stock 1 kΩ but rarely a single 2 kΩ |
 | Breadboard, jumper wires, USB cable | | Use a data cable: some cables only charge |
 | Clear container, 25 cm+ wide, 20–30 cm deep | The "river" | Float a foam disc on the water for a clean echo |
 | Rigid arm or ruler, tape | Holds the sensor 25–30 cm above the tank floor, pointing straight down | Keep it away from the tank walls |
@@ -28,13 +28,27 @@ water in the tank (cm)  --Wi-Fi, signed-->  /api/node (verifies)  -->  dashboard
 - IP67 enclosure;
 - rain gauge.
 
+## What it costs
+
+Listed prices at Kenyan shops on 7 Oct 2026 (Pixel Electric, Ktechnics, Jumia, Nerokas and others), before delivery. Several of the cheapest listings were out of stock, so check before you buy.
+
+| Build | Parts | KES |
+|---|---|---|
+| **This demo node** | ESP32 DevKit 900–1,600 · HC-SR04 200–580 · breadboard, jumpers, resistors ~360 · RGB LED 20 | **about 2,000** (range 1,470–3,530) |
+| **Field node, 2G** | ESP32 + JSN-SR04T waterproof sensor (1,000–1,300) + SIM800L/C (1,200–1,800) + 10 W panel (1,000–1,900) + CN3791 solar charger (400) + 2 × 18650 cells and holder + IP66 box (800) | **about 5,800** |
+| **Field node, 4G** | as above with an A7672E 4G Cat-1 modem (~6,000) instead of 2G | **about 12,400–14,000** |
+
+- **2G or 4G:** Kenya has no 2G switch-off date, but 2G use is falling fast, so 4G Cat-1 is the safer field choice.
+- **Charging:** don't put a 12 V panel on a TP4056 charger (it takes about 8 V at most). Use the CN3791 12 V board, or a 6 V panel with the TP4056.
+- **Radar sensors** (±5 mm) aren't sold locally. A SparkFun XM125 board is about KES 6,500 before shipping and duty, and an industrial 80 GHz unit about KES 200,000.
+
 ## Wiring
 
 ```text
 HC-SR04 VCC  -> ESP32 VIN (5 V)
 HC-SR04 GND  -> GND
 HC-SR04 TRIG -> GPIO 5
-HC-SR04 ECHO -> 1 kΩ -> GPIO 18 ;  GPIO 18 -> 2 kΩ -> GND
+HC-SR04 ECHO -> 1 kΩ -> GPIO 18 ;  GPIO 18 -> 2 kΩ (two 1 kΩ in series) -> GND
 RGB LED      -> GPIO 25 / 26 / 27 through 220 Ω (common cathode to GND)   [optional]
 ```
 
@@ -59,7 +73,7 @@ RGB LED      -> GPIO 25 / 26 / 27 through 220 Ω (common cathode to GND)   [opti
 2. Open https://riskforge-nzoia.vercel.app on the projector laptop. Select **Live river node**, then **Wi-Fi**. Within seconds it shows **Online over Wi-Fi · signature verified**. Judges can open the same page on their phones.
 3. Check the scale: `1 cm = 0.30 m` of river stage.
 4. Pre-fill the tank to about **8.5 cm**, which reads as 2.55 m: just under the 2.8 m alert level.
-5. Pour one cup: within 3–5 s the level crosses **Alert**, the 3D water rises over Budalangi, and the flooded buildings and event loss update.
+5. Pour one cup: within about 5 s the level crosses **Alert**, the 3D water rises over Budalangi, and the flooded buildings and event loss update.
 6. Keep pouring past **16 cm** (4.8 m): the parametric trigger fires.
 7. Security moment: run `python scripts/send_test_reading.py --forge --url https://riskforge-nzoia.vercel.app/api/node`, or press **Send a forged reading** under **Underwriter report → River node**. The panel shows the forgery as rejected.
 

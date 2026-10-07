@@ -394,8 +394,8 @@ function Trace({ history }: { history: [number, number][] }) {
         <polyline points={pts} fill="none" stroke="var(--chart-line)" strokeWidth={1.5} vectorEffect="non-scaling-stroke" />
       </svg>
       <div className="flex justify-between text-[10px] text-slate-500">
-        <span>{ago((t1 - t0) / 1000)} ago</span>
-        <span>now · {history[history.length - 1][1].toFixed(1)} cm in the tank</span>
+        <span>last {ago((t1 - t0) / 1000)} of readings</span>
+        <span>latest · {history[history.length - 1][1].toFixed(1)} cm in the tank</span>
       </div>
     </div>
   );
