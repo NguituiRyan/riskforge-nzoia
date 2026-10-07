@@ -323,6 +323,24 @@ th.text-right {
   .maplibregl-ctrl-bottom-right {
     bottom: 220px;
   }
+  /* closed credits shrink to a small "i"; opened, the text stays small */
+  .maplibregl-ctrl-attrib.maplibregl-compact:not(.maplibregl-compact-show) {
+    min-height: 0;
+    width: 18px;
+    height: 18px;
+    padding: 0;
+    margin: 0 10px 6px 0;
+    opacity: 0.7;
+  }
+  .maplibregl-ctrl-attrib.maplibregl-compact:not(.maplibregl-compact-show) .maplibregl-ctrl-attrib-button {
+    width: 18px;
+    height: 18px;
+    background-size: 18px;
+  }
+  .maplibregl-ctrl-attrib.maplibregl-compact-show {
+    font-size: 10px;
+    line-height: 1.4;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

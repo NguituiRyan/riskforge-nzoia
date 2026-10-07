@@ -223,6 +223,17 @@ export default function MapScene(props: Props) {
     if (import.meta.env.DEV) (window as unknown as { __map: maplibregl.Map }).__map = map;
     map.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), "bottom-right");
     map.addControl(new maplibregl.AttributionControl({ compact: true }), "bottom-right");
+    // phones: start with just the "i" - the imagery credits open on tap instead of covering the map.
+    // MapLibre expands the control when the first credits arrive, so close it at that moment, once.
+    const attrib = map.getContainer().querySelector(".maplibregl-ctrl-attrib");
+    if (attrib && matchMedia("(max-width: 1023px)").matches) {
+      const closeOnce = new MutationObserver(() => {
+        if (!attrib.classList.contains("maplibregl-compact-show")) return;
+        attrib.classList.remove("maplibregl-compact-show");
+        closeOnce.disconnect();
+      });
+      closeOnce.observe(attrib, { attributes: true, attributeFilter: ["class"] });
+    }
 
     const markers: maplibregl.Marker[] = [];
     let cancelled = false;
