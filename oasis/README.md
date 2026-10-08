@@ -17,6 +17,19 @@ The loss calculation (ground-up → insurance terms → reinsurance → AAL and 
 Book sample weights are applied by scaling a building's values and its policy terms by its weight, which scales
 every loss by exactly that weight.
 
+## Live site: Oasis on the Risk Forge laptop (no account, no card)
+
+Double-click **`oasis/start_oasis_public.cmd`** (or run `bash oasis/start_public.sh` in WSL) and keep the window open.
+It starts the Oasis runner, opens a free Cloudflare quick tunnel to it and registers the tunnel's address with the
+site every 5 minutes. The site's `/api/oasis` relay forwards visitors' runs to it with a shared secret
+(`OASIS_RELAY_SECRET`, in the repo-root `.env` and on Vercel), limits each visitor to 20 runs an hour, and the tunnel
+refuses anything that does not come through the site. While the laptop is off, the site says "Oasis offline" and
+shows the precomputed Oasis run and the instant preview. The tunnel address changes on every start; the heartbeat
+keeps the site pointed at the new one.
+
+For an always-on host, the same container deploys to Google Cloud Run (`oasis/deploy_cloudrun.sh`) or a Hugging Face
+Docker Space (`oasis/deploy_hf_space.py`); both need a billing method on the account.
+
 ## Run it
 
 Oasis needs Linux (WSL on Windows). Its install is about 740 MB, too big for a Vercel function, so it runs on a
