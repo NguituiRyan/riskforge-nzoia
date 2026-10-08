@@ -71,4 +71,6 @@ export interface Place {
   kind: "focus" | "town" | "village" | "node" | "landmark" | "peak" | "area";
   /** other spellings brokers use (gazetteer only) */
   aliases?: string[];
+  /** county (Kenya-wide gazetteer) */
+  county?: string;
 }

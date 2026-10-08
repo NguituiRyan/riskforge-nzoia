@@ -24,6 +24,8 @@ const SOURCES: [string, "real" | "synthetic" | "assumption", string, string][] =
   ["GloFAS v4 reanalysis discharge, 1997–2026 (river node frequency)", "real", "Copernicus / Open-Meteo, CC BY 4.0", "open-meteo.com/en/docs/flood-api"],
   ["Rwambwa alert level 2.8 m (Nzoia flood bulletin, Dec 2009)", "real", "ReliefWeb", "reliefweb.int"],
   ["Kenya / Uganda borders; Lake Victoria; Nzoia river; place names", "real", "geoBoundaries CC BY 4.0 · Natural Earth PD · OpenStreetMap ODbL", "geoboundaries.org · openstreetmap.org"],
+  ["JRC global flood maps cut to Kenya (same product and grid as the Nzoia clips; checked cell for cell: 0.00 m difference)", "real", "European Commission JRC; free use", "jeodpp.jrc.ec.europa.eu/ftp/jrc-opendata/FLOODS/GlobalMaps"],
+  ["16,635 Kenyan places with their county (towns, villages, reserves, lodges, rivers…)", "real", "GeoNames CC BY 4.0", "geonames.org"],
   ["Starter exposure CSV (500 buildings)", "synthetic", "Hackathon hosts", "team_b_nzoia/"],
   ["Risk Forge book (1,200 buildings)", "synthetic", "scripts/generate_book.py, seed 2026", "data/portfolios/"],
   ["Imagery and terrain in the 3D view", "real", "Esri World Imagery · AWS Terrain Tiles (Mapzen)", "display only"],
@@ -65,6 +67,7 @@ export default function SourcesTab({ stats, baseBuildings, res, aiRows, portfoli
     ["Building squares in 3D are symbolic", "600 m squares so they read at basin scale; heights scale with value. Not footprints."],
     ["Hazard resolution", "The brief describes ~90 m cells; the supplied rasters are 30 arc-seconds (~928 m), so a building's depth is the average of a ~1 km cell. We report what the files contain."],
     ["Financial terms (book)", "Illustrative programme: KES 25,000 deductible per building, limit = value, 25% quota share, cat XL 4M xs 4M on the cedant's retained event loss. Every input is editable on the Summary tab."],
+    ["Kenya-wide hazard", "Outside the Nzoia the same JRC maps are read for all of Kenya. They model the larger rivers only: a building by a smaller river (Nairobi's rivers, much of the Mara) reads as dry, which is not the same as safe. Groups an AI request puts on a river bank go onto the nearest mapped flood-plain cell, and the page says how far away it was."],
     ["Offer documents: contents", "Stock spoils in shallow water (JRC Africa shape at 2× depth, capped at 95%); machinery at 1.2×, capped at 70%. Raised floors keep the first part of the water out."],
     ["Offer documents: site flood history", "Where the JRC map is dry at a site but the document reports floods, depth-frequency comes from those floods (Weibull plotting positions, log-linear fit read at 1-in-10), shaped to rarer floods by the basin's median JRC growth curve. It is the broker's evidence, not an independent survey."],
     ["Offer documents: calibration", "The site's damage curves are scaled by one factor fitted (least squares) to its own reported claims at their reported depths; the fit (R²) is shown."],
@@ -99,7 +102,7 @@ ${KEY_RPS.map((r) => `- 1-in-${r}${r === 250 ? " (interpolated)" : ""}: ${kes(re
 - Average annual loss ${kes(res.aal)}; illustrative technical premium ${kes(prem.gross)}
 
 ## Limitations
-- JRC maps: ~925 m cells, undefended, 2016 vintage, river only (no Lake Victoria backwater, no local drainage).
+- JRC maps: ~925 m cells, undefended, 2016 vintage, river only (no Lake Victoria backwater, no local drainage); outside the Nzoia, larger rivers only.
 - No Kenyan claims data to calibrate the curves; class parameters are adapted.
 - Full spatial correlation per event; no policy terms (deductibles, limits) applied.
 - GloFAS is model output; 29 years is short for 1-in-500; the river-node stage table is an assumption.

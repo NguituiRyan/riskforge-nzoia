@@ -45,3 +45,7 @@ hardware/**/secrets.h
 
 # typescript incremental build info
 *.tsbuildinfo
+
+# raw downloads (JRC global flood maps, GeoNames) - rebuilt by scripts/prepare_kenya_hazard.py
+data/jrc_global/
+data/geonames/

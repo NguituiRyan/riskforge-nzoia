@@ -179,6 +179,10 @@ export interface NodeMarkerState {
 
 interface Props {
   buildings: FeatureCollection<Polygon, BuildingProps>;
+  /** flood cells drawn as water: Nzoia, plus Kenya-wide once loaded */
+  flood: FeatureCollection<Polygon>;
+  /** buildings to outline (the selected building's neighbours) */
+  highlightIds: string[];
   places: Place[];
   /** return period the water shows; continuous in live mode */
   waterRp: number;
@@ -208,6 +212,7 @@ export default function MapScene(props: Props) {
   onIntroDone.current = props.onIntroDone;
   const userMoved = useRef(false);
   const initialBuildings = useRef(buildings);
+  const initialFlood = useRef(props.flood);
   const initialTheme = useRef(theme);
   const buildingsRef = useRef(buildings);
   buildingsRef.current = buildings;
@@ -253,7 +258,7 @@ export default function MapScene(props: Props) {
       if (cancelled) return; // a removed instance (React StrictMode mounts twice in dev) must never become "ready"
       map.addSource("border", { type: "geojson", data: "/data/border.geojson" });
       map.addSource("river", { type: "geojson", data: "/data/river.geojson" });
-      map.addSource("flood", { type: "geojson", data: "/data/flood_cells.geojson" });
+      map.addSource("flood", { type: "geojson", data: initialFlood.current });
       map.addSource("buildings", { type: "geojson", data: initialBuildings.current });
       map.addSource("building-points", { type: "geojson", data: toPoints(initialBuildings.current) });
 
@@ -327,6 +332,7 @@ export default function MapScene(props: Props) {
           "fill-extrusion-opacity": 0.95,
         },
       });
+      map.addLayer({ id: "building-neighbour", type: "line", source: "buildings", filter: ["in", ["get", "id"], ["literal", []]], paint: { "line-color": "#fbbf24", "line-width": 2, "line-dasharray": [2, 1.5] } });
       map.addLayer({ id: "building-selected", type: "line", source: "buildings", filter: ["==", ["get", "id"], ""], paint: { "line-color": "#ffffff", "line-width": 3 } });
 
       // Rendered-feature queries don't hit fill-extrusions over terrain, so hit-test the pillars in screen space:
@@ -466,6 +472,18 @@ export default function MapScene(props: Props) {
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
   }, [hasAi, ready]);
+
+  // ---- flood cells: Kenya-wide cells join the Nzoia ones once they load ----
+  useEffect(() => {
+    const map = ready;
+    if (!map || props.flood === initialFlood.current) return;
+    (map.getSource("flood") as maplibregl.GeoJSONSource | undefined)?.setData(props.flood);
+  }, [props.flood, ready]);
+
+  // ---- the selected building's neighbours, outlined ----
+  useEffect(() => {
+    ready?.setFilter("building-neighbour", ["in", ["get", "id"], ["literal", props.highlightIds]]);
+  }, [props.highlightIds, ready]);
 
   // ---- water level: animate in log(return period) from what is shown to the new value ----
   useEffect(() => {

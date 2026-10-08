@@ -7,6 +7,7 @@ import type { FloodGrid, PortfolioResult, ScenarioResult } from "../../lib/engin
 import type { NodeData, TriggerTerms } from "../../lib/node";
 import type { ReportTab } from "../Panels";
 import type { Programme } from "../../lib/terms";
+import type { KenyaHazard } from "../../lib/kenya";
 import SummaryTab from "./SummaryTab";
 import BuildingsTab from "./BuildingsTab";
 import VulnerabilityTab from "./VulnerabilityTab";
@@ -20,6 +21,8 @@ export interface ReportProps {
   nd: NodeData;
   gazetteer: Place[];
   grid: FloodGrid;
+  /** Kenya-wide hazard (growth curves, coverage); null until loaded */
+  kenya: KenyaHazard | null;
   portfolio: PortfolioView;
   portfolioName: string;
   baseBuildings: Record<PortfolioView, BuildingProps[]>;

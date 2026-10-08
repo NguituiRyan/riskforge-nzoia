@@ -182,18 +182,27 @@ export interface OfferRun {
   decision: Decision;
 }
 
-const BBOX = { w: 33.7, s: -0.3, e: 35.4, n: 1.3 }; // the JRC hazard grid
+const BBOX = { w: 33.9, s: -4.75, e: 41.95, n: 5.05 }; // Kenya: the JRC hazard grid now covers the whole country
 const kes = (n: number) => (n >= 1e9 ? `KES ${(n / 1e9).toFixed(2)} bn` : n >= 1e6 ? `KES ${(n / 1e6).toFixed(n >= 1e7 ? 1 : 2)}M` : n >= 1e3 ? `KES ${Math.round(n / 1e3)}K` : `KES ${Math.round(n)}`);
 
 export function runOffer(
   x: OfferExtract,
-  opts: { gazetteer: Place[]; grid: FloodGrid; growth: Record<string, number>; hazardSource: "auto" | "jrc" | "site"; calibrate: boolean; batch: number; book?: BuildingProps[] },
+  opts: {
+    gazetteer: Place[];
+    grid: FloodGrid;
+    /** depth growth with rarity for the site's region (Nzoia's, or the 1-degree tile's elsewhere in Kenya) */
+    growth: (lon: number, lat: number) => Record<string, number>;
+    hazardSource: "auto" | "jrc" | "site";
+    calibrate: boolean;
+    batch: number;
+    book?: BuildingProps[];
+  },
 ): OfferRun {
   const id = `OFR-${opts.batch}`;
   // site: stated coordinates inside the hazard grid, else the named place
   const place = opts.gazetteer.find((g) => g.name === x.site.place);
   const coordsOk = x.site.lat !== null && x.site.lon !== null && x.site.lon > BBOX.w && x.site.lon < BBOX.e && x.site.lat > BBOX.s && x.site.lat < BBOX.n;
-  if (!coordsOk && !place) throw new Error("The document gives no location inside the Nzoia basin (coordinates or a known place).");
+  if (!coordsOk && !place) throw new Error("The document gives no location in Kenya (coordinates or a known place).");
   const site = coordsOk ? { lat: x.site.lat!, lon: x.site.lon!, located: "coordinates" as const } : { lat: place!.lat, lon: place!.lon, located: "place" as const };
 
   // ---- exposure rows ----
@@ -233,7 +242,7 @@ export function runOffer(
   // ---- hazard ----
   const jrc = hazardAt(opts.grid, site.lon, site.lat);
   const jrcDry = RPS.every((r) => !jrc[r]);
-  const sc = siteCurve(x.flood_history, x.record_years, opts.growth);
+  const sc = siteCurve(x.flood_history, x.record_years, opts.growth(site.lon, site.lat));
   const source: "jrc" | "site" = opts.hazardSource === "jrc" || !sc ? "jrc" : opts.hazardSource === "site" ? "site" : jrcDry ? "site" : "jrc";
   const depths = source === "site" && sc ? sc.depths : jrc;
   const hazard: HazardStage = { source, jrc, site: sc?.depths ?? null, events: sc?.events ?? [], recordYears: sc?.years ?? x.record_years, jrcDry };

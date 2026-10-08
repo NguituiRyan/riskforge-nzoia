@@ -8,6 +8,8 @@ import { readDocument, redactPersonal, type DocText, type Redaction } from "../.
 import { offerCsv, runOffer, verifyFacts, type FactCheck, type OfferExtract, type OfferRun } from "../../lib/offer";
 import { download } from "../../lib/report";
 import { CLASS_LABEL, CLASS_UI, kes } from "../../lib/format";
+import { asPlace, growthAt, loadKenyaPlaces, placeCandidates } from "../../lib/kenya";
+import type { Place } from "../../lib/types";
 
 interface ExtractResponse {
   offer: OfferExtract;
@@ -47,7 +49,9 @@ const VERDICT_TONE: Record<OfferRun["decision"]["verdict"], string> = {
  * a decision the underwriter can approve (the buildings join the map) or decline. Visual first; numbers on hover.
  */
 export default function OfferPanel(p: ReportProps) {
-  const { gazetteer, grid, stats, baseBuildings, portfolio, aiRows, addAiRows } = p;
+  const { gazetteer, grid, stats, baseBuildings, portfolio, aiRows, addAiRows, kenya } = p;
+  // places offered to the AI for this document: the Nzoia gazetteer plus Kenyan places named in it
+  const [lookup, setLookup] = useState<Place[]>(gazetteer);
   const [doc, setDoc] = useState<{ file: DocText; red: Redaction } | null>(null);
   const [busy, setBusy] = useState<"read" | "ai" | null>(null);
   const [err, setErr] = useState<string | null>(null);
@@ -67,11 +71,11 @@ export default function OfferPanel(p: ReportProps) {
   const run = useMemo(() => {
     if (!extract) return null;
     try {
-      return runOffer(extract.offer, { gazetteer, grid, growth: stats.depthGrowth, hazardSource, calibrate, batch, book: baseBuildings[portfolio] });
+      return runOffer(extract.offer, { gazetteer: lookup, grid, growth: (lon, lat) => growthAt(kenya, stats.depthGrowth, lon, lat), hazardSource, calibrate, batch, book: baseBuildings[portfolio] });
     } catch (e) {
       return e instanceof Error ? e.message : String(e);
     }
-  }, [extract, gazetteer, grid, stats.depthGrowth, hazardSource, calibrate, batch, baseBuildings, portfolio]);
+  }, [extract, lookup, grid, kenya, stats.depthGrowth, hazardSource, calibrate, batch, baseBuildings, portfolio]);
   const checks = useMemo(() => (extract && doc ? verifyFacts(extract.offer, doc.red.text) : []), [extract, doc]);
 
   // a clock for the AI step, and the engine stages revealed one at a time after it answers
@@ -127,7 +131,10 @@ export default function OfferPanel(p: ReportProps) {
     setStartedAt(t0);
     setTick(t0);
     try {
-      const res = await fetch("/api/offer", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ text: doc.red.text, gazetteer: gazetteer.map((g) => g.name) }) });
+      const kp = await loadKenyaPlaces().catch(() => []);
+      const places = [...gazetteer, ...placeCandidates(doc.red.text, kp, 120).map(asPlace)];
+      setLookup(places);
+      const res = await fetch("/api/offer", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ text: doc.red.text, gazetteer: places.map((g) => g.name) }) });
       if (!res.ok || !res.body || !res.headers.get("content-type")?.includes("ndjson")) {
         const data = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
         throw new Error((data as { error?: string }).error ?? `HTTP ${res.status}`);

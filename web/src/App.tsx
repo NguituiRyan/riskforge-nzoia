@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import gsap from "gsap";
-import type { FeatureCollection, Polygon } from "geojson";
+import type { Feature, FeatureCollection, Polygon } from "geojson";
 import MapScene, { type CameraPreset, type NodeMarkerState } from "./components/MapScene";
 import BuildingCard from "./components/BuildingCard";
 import LivePanel from "./components/LivePanel";
@@ -9,6 +9,7 @@ import { Brand, Controls, Credit, Insights, ModeTabs, type Mode, type ReportTab,
 import type { BuildingProps, ColourMode, Place, PortfolioView, RP, Stats } from "./lib/types";
 import { RPS } from "./lib/types";
 import { buildFloodGrid, runPortfolio, scenario, type FloodGrid } from "./lib/engine";
+import { kenyaFloodFeatures, kenyaGrid, type KenyaHazard } from "./lib/kenya";
 import { alertFor, rpForStage, type NodeData, type NodeReading, type TriggerTerms } from "./lib/node";
 import { squareFeature } from "./lib/report";
 import { BOOK_PROGRAMME, type Programme } from "./lib/terms";
@@ -27,6 +28,8 @@ interface Loaded {
   places: Place[];
   gazetteer: Place[];
   grid: FloodGrid;
+  /** the Nzoia flood cells as drawn on the map */
+  flood: FeatureCollection<Polygon>;
   nd: NodeData;
 }
 
@@ -42,6 +45,8 @@ export default function App() {
   const [portfolio, setPortfolio] = useState<PortfolioView>("book");
   const [playing, setPlaying] = useState(false);
   const [selected, setSelected] = useState<BuildingProps | null>(null);
+  // the neighbours the building card lists, outlined on the map
+  const [neighbourIds, setNeighbourIds] = useState<string[]>([]);
   const [camera, setCamera] = useState<{ preset: CameraPreset; nonce: number } | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [mode, setMode] = useState<Mode>("scenario");
@@ -69,9 +74,27 @@ export default function App() {
       getJson<Parameters<typeof buildFloodGrid>[0]>("/data/flood_cells.geojson"),
       getJson<NodeData>("/data/river_node.json"),
     ])
-      .then(([stats, book, starter, places, gazetteer, flood, nd]) => setData({ stats, fcs: { book, starter }, places, gazetteer, grid: buildFloodGrid(flood), nd }))
+      .then(([stats, book, starter, places, gazetteer, flood, nd]) => setData({ stats, fcs: { book, starter }, places, gazetteer, grid: buildFloodGrid(flood), flood: flood as FeatureCollection<Polygon>, nd }))
       .catch((e: unknown) => setError(String(e)));
   }, []);
+
+  // the Kenya-wide hazard (0.8 MB) loads after the basin is on screen; until then the Nzoia grid answers alone
+  const [kenya, setKenya] = useState<KenyaHazard | null>(null);
+  useEffect(() => {
+    if (!data) return;
+    let off = false;
+    getJson<KenyaHazard>("/data/kenya_hazard.json")
+      .then((h) => !off && setKenya(h))
+      .catch(() => undefined); // the model still works on the Nzoia; AI rows elsewhere then read as dry
+    return () => {
+      off = true;
+    };
+  }, [data]);
+  const grid = useMemo(() => (data ? (kenya ? kenyaGrid(kenya, data.grid) : data.grid) : null), [data, kenya]);
+  const floodFc = useMemo<FeatureCollection<Polygon> | null>(
+    () => (data ? (kenya ? { type: "FeatureCollection", features: [...(data.flood.features as Feature<Polygon>[]), ...kenyaFloodFeatures(kenya)] } : data.flood) : null),
+    [data, kenya],
+  );
 
   // "Raise the river": step through the return periods
   useEffect(() => {
@@ -167,6 +190,8 @@ export default function App() {
       {data && mapFc && (
         <MapScene
           buildings={mapFc}
+          flood={floodFc ?? data.flood}
+          highlightIds={neighbourIds}
           places={data.places}
           waterRp={waterRp}
           live={mode === "live"}
@@ -211,7 +236,7 @@ export default function App() {
           {/* building details */}
           {selected && (
             <div className="rise-in scroll-thin absolute inset-x-3 bottom-[226px] z-10 max-h-[calc(100dvh-226px-84px)] overflow-y-auto rounded-2xl lg:bottom-12 lg:left-[372px] lg:right-[340px] lg:max-h-[calc(100dvh-64px)]">
-              <BuildingCard b={selected} rp={rp} liveRp={live ? live.rp ?? 1 : null} onClose={() => setSelected(null)} />
+              <BuildingCard b={selected} rp={rp} liveRp={live ? live.rp ?? 1 : null} onClose={() => setSelected(null)} all={buildings} onSelect={setSelected} onNeighbours={setNeighbourIds} />
             </div>
           )}
 
@@ -247,7 +272,8 @@ export default function App() {
               stats={data.stats}
               nd={data.nd}
               gazetteer={data.gazetteer}
-              grid={data.grid}
+              grid={grid ?? data.grid}
+              kenya={kenya}
               portfolio={portfolio}
               portfolioName={PORTFOLIO_NAME[portfolio]}
               baseBuildings={baseBuildings}
