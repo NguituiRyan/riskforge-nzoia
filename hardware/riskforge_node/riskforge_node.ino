@@ -19,6 +19,8 @@
     No resistors? AJ-SR04M only: power it from 3V3 instead of VIN and wire ECHO straight to GPIO 18 (its echo is then 3.3 V).
     AJ-SR04M: leave the R19 pads empty (mode 1, HC-SR04 compatible). The probe plugs into the board's 2-pin socket.
     Status LED: on-board LED (GPIO 2). Optional RGB LED: R GPIO 25, G GPIO 26, B GPIO 27 (220 Ω each, common cathode).
+    ESP32-S3 DevKit: same sensor pins (5, 18, 3V3, GND - all on one header). The alert colour shows on the board's own
+    RGB LED; GPIO 26-37 belong to its flash/PSRAM, so the RGB pins above are not used. Board: "ESP32S3 Dev Module".
 
   Mounting (AJ-SR04M)
     It can't see anything nearer than about 20 cm, so the probe must sit at least 20 cm above the HIGHEST water.
@@ -71,8 +73,12 @@ HTTPClient http;
 const char* NODE_ID = "RF-NZ-01";
 const int PIN_TRIG = 5;
 const int PIN_ECHO = 18;
+#if CONFIG_IDF_TARGET_ESP32S3
+const int PIN_RGB = 48;  // the DevKit's addressable RGB LED (GPIO 38 on some v1.1 boards)
+#else
 const int PIN_LED = 2;
 const int PIN_R = 25, PIN_G = 26, PIN_B = 27;
+#endif
 const int PIN_BOOT = 0;
 
 const float AIR_TEMP_C = 25.0;          // replace with a BME280/DHT22 reading in production
@@ -112,9 +118,17 @@ float medianDistanceCm() {
 }
 
 void setRgb(bool r, bool g, bool b) {
+#if CONFIG_IDF_TARGET_ESP32S3
+  static int last = -1;  // the S3's LED is addressable: rewrite it only when the colour changes
+  int now = r << 2 | g << 1 | b;
+  if (now == last) return;
+  last = now;
+  rgbLedWrite(PIN_RGB, r ? 40 : 0, g ? 40 : 0, b ? 40 : 0);  // dimmed: full brightness is glaring
+#else
   digitalWrite(PIN_R, r);
   digitalWrite(PIN_G, g);
   digitalWrite(PIN_B, b);
+#endif
 }
 
 void showLocalAlert(float stageM) {
@@ -122,8 +136,10 @@ void showLocalAlert(float stageM) {
   if (stageM >= WARNING_M) setRgb(1, 0, 0);
   else if (stageM >= ALERT_M) setRgb(1, 1, 0);
   else setRgb(0, 1, 0);
+#if !CONFIG_IDF_TARGET_ESP32S3
   int period = stageM >= DANGER_M ? 150 : stageM >= WARNING_M ? 300 : stageM >= ALERT_M ? 700 : 2000;
   digitalWrite(PIN_LED, (millis() / period) % 2);
+#endif
 }
 
 void calibrate() {
@@ -188,10 +204,12 @@ void setup() {
   Serial.begin(115200);
   pinMode(PIN_TRIG, OUTPUT);
   pinMode(PIN_ECHO, INPUT);
+#if !CONFIG_IDF_TARGET_ESP32S3
   pinMode(PIN_LED, OUTPUT);
   pinMode(PIN_R, OUTPUT);
   pinMode(PIN_G, OUTPUT);
   pinMode(PIN_B, OUTPUT);
+#endif
   pinMode(PIN_BOOT, INPUT_PULLUP);
   prefs.begin("riskforge", false);
   emptyDistCm = prefs.getFloat("empty", emptyDistCm);
