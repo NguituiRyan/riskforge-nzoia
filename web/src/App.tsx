@@ -46,7 +46,7 @@ export default function App() {
   const [mode, setMode] = useState<Mode>("scenario");
   const [reading, setReading] = useState<NodeReading | null>(null);
   const [aiRows, setAiRows] = useState<BuildingProps[]>([]);
-  const [trigger, setTrigger] = useState<TriggerTerms>({ triggerStage: 4.8, payout: 50_000_000, load: 0.4 });
+  const [trigger, setTrigger] = useState<TriggerTerms>({ triggerStage: 4.8, payout: 7_000_000, load: 0.4 });
   const [report, setReport] = useState<{ open: boolean; tab: ReportTab }>({ open: false, tab: "summary" });
   const [theme, setTheme] = useState<Theme>(initialTheme);
   const toggleTheme = useCallback(() => setTheme((t) => (t === "dark" ? "light" : "dark")), []);

@@ -29,7 +29,7 @@ export default function BuildingCard({ b, rp, liveRp, onClose }: { b: BuildingPr
             <div className="text-[12px] text-slate-500">
               {b.settlement && b.settlement !== "other" ? `near ${b.settlement}` : ""}
               {b.density_class ? `${b.settlement && b.settlement !== "other" ? " · " : ""}${DENSITY_LABEL[b.density_class]}` : ""}
-              {b.stratum === "floodplain" ? " · floodplain sample" : ""}
+              {b.stratum ? ` · ${b.stratum === "floodplain" ? "flood-plain" : "basin"} sample, counts ×${(b.w ?? 1).toFixed(2)} in totals` : ""}
             </div>
           )}
         </div>
@@ -40,7 +40,7 @@ export default function BuildingCard({ b, rp, liveRp, onClose }: { b: BuildingPr
 
       {issue && (
         <div className="mt-3 rounded-lg border px-3 py-2 text-[13px] text-rose-200" style={{ borderColor: `${ISSUE_COLOUR}66`, background: `${ISSUE_COLOUR}14` }}>
-          ⚠ Location issue: {WHERE_LABEL[b.where]}. Under review with the hackathon hosts.
+          ⚠ Location issue: {WHERE_LABEL[b.where]}.{b.w === 0 ? " Left out of the portfolio results." : ""} Raised with the hackathon hosts.
         </div>
       )}
 

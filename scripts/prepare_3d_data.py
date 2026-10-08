@@ -7,6 +7,16 @@ Hazard (Step 1 of the brief, applied to Nzoia)
                             (roof level of a single-storey building). It makes Nzoia comparable with the Nairobi
                             0-1 scores; the damage curves use the depth in metres, not the score.
 
+Permanent water
+  A ~925 m cell that is already >= 3.5 m deep at 1-in-10 is the river channel or the lake edge: the depth is the
+  channel's, not a flood plain's. Those cells are drawn as water but never carry a building: the book avoids them
+  (generate_book.py), starter points there are flagged WATER, and gazetteer points move to the nearest land cell.
+
+Weights
+  Portfolio totals use a weight per building: the book's stratified sample_weight (the flood plain is over-sampled
+  to study it, then weighted back to population); 1 for starter rows; 0 for starter rows in the lake or on permanent
+  water (shown "as provided" separately). Counts are of buildings with weight > 0.
+
 Inputs
   team_b_nzoia/nzoia_rp{10..500}y.tif                 JRC flood depth maps (real)
   data/portfolios/exposure_nzoia_riskforge_book.csv   Risk Forge synthetic book (scripts/generate_book.py)
@@ -50,6 +60,8 @@ CLASS_CURVE = {  # k (depth multiplier), cap; class spread after Englhardt et al
     "concrete_rcc": (0.8, 0.75),
 }
 FOOTPRINT_M = 600  # symbolic square so buildings read at basin scale (not the real footprint)
+WATER_D10_M = 3.5  # ASSUMPTION: >= 3.5 m deep at 1-in-10 = permanent water (river channel or lake edge)
+EXCLUDED = ("LAKE", "WATER")  # location flags that carry no weight in portfolio results
 
 
 def load_raster(rp):
@@ -113,15 +125,16 @@ def aal_from(losses):
     return aal + losses[RPS[-1]] / RPS[-1]
 
 
-def attach_hazard(ex, grid, lake, kenya):
+def attach_hazard(ex, grid, lake, kenya, water):
     rasters, dx, dy, x0, y0 = grid
     nrows, ncols = rasters[RPS[0]].shape
     ex = ex.copy()
     ex["tiv_model"] = (ex.floor_area_m2 * ex.cost_per_m2_kes / 5000).round() * 5000  # metadata: area x cost, nearest 5,000
     pts = ex[["lon", "lat"]].values
-    ex["location_flag"] = np.where(inside(lake, pts), "LAKE", np.where(inside(kenya, pts), "KE", "UG"))
     col = ((ex.lon - x0) / dx).astype(int).clip(0, ncols - 1)
     row = ((y0 - ex.lat) / dy).astype(int).clip(0, nrows - 1)
+    on_water = water[row.values, col.values]
+    ex["location_flag"] = np.where(inside(lake, pts), "LAKE", np.where(on_water, "WATER", np.where(inside(kenya, pts), "KE", "UG")))
     for rp in RPS:
         d = rasters[rp][row, col].round(2)
         ex[f"hazard_depth_m_rp{rp}"] = d
@@ -131,37 +144,79 @@ def attach_hazard(ex, grid, lake, kenya):
     return ex
 
 
-def loss_at_rp(df, rp):
+def model_weight(df):
+    """Weight in portfolio totals: the book's sample_weight, 1 for other rows, 0 for rows in the lake or on permanent water."""
+    w = df["sample_weight"].astype(float) if "sample_weight" in df else pd.Series(1.0, index=df.index)
+    return w.where(~df.location_flag.isin(EXCLUDED), 0.0)
+
+
+def loss_at_rp(df, rp, w):
     total = 0.0
-    for r in df.to_dict("records"):
+    for r, wi in zip(df.to_dict("records"), w):
         d = depth_at_rp({t: r[f"hazard_depth_m_rp{t}"] for t in RPS}, rp)
-        total += float(damage_ratio(r["housing_class"], d)) * r["tiv_model"]
+        total += float(damage_ratio(r["housing_class"], d)) * r["tiv_model"] * wi
     return total
 
 
-def portfolio_stats(df):
-    losses = {rp: float(df[f"loss_kes_rp{rp}"].sum()) for rp in RPS}
+def portfolio_stats(df, w):
+    """Weighted money (value, losses, AAL); counts of buildings that carry weight. Mirrors runPortfolio in engine.ts."""
+    on = w > 0
+    tiv_w = df.tiv_model * w
+    cls = df.housing_class
+    losses = {rp: float((df[f"loss_kes_rp{rp}"] * w).sum()) for rp in RPS}
     return {
-        "loss250": loss_at_rp(df, 250),
-        "count": int(len(df)),
-        "tiv": float(df.tiv_model.sum()),
-        "byClass": {c: {"count": int((df.housing_class == c).sum()), "tiv": float(df[df.housing_class == c].tiv_model.sum())} for c in CLASS_CURVE},
+        "loss250": loss_at_rp(df, 250, w),
+        "count": int(on.sum()),
+        "tiv": float(tiv_w.sum()),
+        "byClass": {c: {"count": int((on & (cls == c)).sum()), "tiv": float(tiv_w[cls == c].sum())} for c in CLASS_CURVE},
         "perRp": {str(rp): {
             "loss": losses[rp],
-            "buildingsWet": int((df[f"hazard_depth_m_rp{rp}"] > 0).sum()),
-            "tivWet": float(df[df[f"hazard_depth_m_rp{rp}"] > 0].tiv_model.sum()),
-            "lossByClass": {c: float(df[df.housing_class == c][f"loss_kes_rp{rp}"].sum()) for c in CLASS_CURVE},
+            "buildingsWet": int((on & (df[f"hazard_depth_m_rp{rp}"] > 0)).sum()),
+            "tivWet": float(tiv_w[df[f"hazard_depth_m_rp{rp}"] > 0].sum()),
+            "lossByClass": {c: float((df[f"loss_kes_rp{rp}"] * w)[cls == c].sum()) for c in CLASS_CURVE},
         } for rp in RPS},
         "aal": aal_from(losses),
     }
 
 
-def to_geojson(df, path):
+def snap_gazetteer(path, bad, lake, grid_meta):
+    """Gazetteer points place AI-ingested buildings. One on permanent water or in the lake moves to the centre of the
+    nearest land cell; its original position is kept as "orig" so re-running starts from the source point."""
+    dx, dy, x0, y0 = grid_meta
+    nrows, ncols = bad.shape
+    places = json.loads(path.read_text(encoding="utf-8"))
+    moved = []
+    for g in places:
+        lat, lon = g.get("orig", [g["lat"], g["lon"]])
+        r, c = int((y0 - lat) / dy), int((lon - x0) / dx)
+        in_grid = 0 <= r < nrows and 0 <= c < ncols
+        if not in_grid or (not bad[r, c] and not inside(lake, np.array([[lon, lat]]))[0]):
+            g["lat"], g["lon"] = lat, lon
+            g.pop("orig", None)
+            continue
+        best = None
+        for rr in range(max(r - 8, 0), min(r + 9, nrows)):
+            for cc in range(max(c - 8, 0), min(c + 9, ncols)):
+                if bad[rr, cc]:
+                    continue
+                clon, clat = x0 + (cc + 0.5) * dx, y0 - (rr + 0.5) * dy
+                dist = math.hypot((clon - lon) * math.cos(math.radians(lat)), clat - lat) * 111.32
+                if best is None or dist < best[0]:
+                    best = (dist, clat, clon)
+        if best:
+            g["orig"] = [lat, lon]
+            g["lat"], g["lon"] = round(best[1], 5), round(best[2], 5)
+            moved.append(f"{g['name']} ({best[0]:.1f} km)")
+    path.write_text(json.dumps(places, indent=0, ensure_ascii=False), encoding="utf-8")
+    return moved
+
+
+def to_geojson(df, w, path):
     feats = []
-    for r in df.to_dict("records"):
+    for r, wi in zip(df.to_dict("records"), w):
         props = {"id": r["loc_id"], "cls": r["housing_class"], "area": int(r["floor_area_m2"]), "cost": int(r["cost_per_m2_kes"]),
                  "tiv": float(r["tiv_model"]), "tivCsv": float(r["tiv_kes"]), "lat": round(r["lat"], 5), "lon": round(r["lon"], 5),
-                 "where": r["location_flag"]}
+                 "where": r["location_flag"], "w": round(float(wi), 4)}
         for extra in ("settlement", "density_class", "stratum"):
             if extra in r:
                 props[extra] = r[extra]
@@ -193,6 +248,8 @@ def main():
     rr, cc = np.mgrid[0:nrows, 0:ncols]
     centres = np.c_[(x0 + (cc + 0.5) * dx).ravel(), (y0 - (rr + 0.5) * dy).ravel()]
     lake_mask = inside(lake, centres).reshape(nrows, ncols)
+    water = (rasters[RPS[0]] >= WATER_D10_M) & ~lake_mask  # river channel and lake edge
+    land = ~lake_mask & ~water
     wet_any = np.zeros((nrows, ncols), bool)
     for rp in RPS:
         wet_any |= rasters[rp] > 0
@@ -200,18 +257,26 @@ def main():
     for r, c in zip(*np.nonzero(wet_any & ~lake_mask)):
         lon0, lat1 = x0 + c * dx, y0 - r * dy
         props = {f"d{rp}": round(float(rasters[rp][r, c]), 2) for rp in RPS}
+        if water[r, c]:
+            props["pw"] = 1  # permanent water: drawn flat as water, no building hazard
         feats.append({"type": "Feature", "properties": props, "geometry": {"type": "Polygon", "coordinates": [[
             [lon0, lat1], [lon0 + dx, lat1], [lon0 + dx, lat1 - dy], [lon0, lat1 - dy], [lon0, lat1]]]}})
     (OUT / "flood_cells.geojson").write_text(json.dumps({"type": "FeatureCollection", "features": feats}, separators=(",", ":")))
 
     # ---- portfolios ----
-    book = attach_hazard(pd.read_csv(args.book), grid, lake, kenya)
-    starter = attach_hazard(pd.read_csv(args.starter), grid, lake, kenya)
+    book = attach_hazard(pd.read_csv(args.book), grid, lake, kenya, water)
+    starter = attach_hazard(pd.read_csv(args.starter), grid, lake, kenya, water)
+    bad_book = book.location_flag.isin(EXCLUDED).sum()
+    if bad_book:
+        print(f"WARNING: {bad_book} book buildings in the lake or on permanent water - re-run generate_book.py")
+    weights = {"book": model_weight(book), "starter": model_weight(starter)}
     hazard_cols = [f"hazard_{k}_rp{rp}" for k in ("depth_m", "severity") for rp in RPS]
     for name, df in (("book", book), ("starter", starter)):
         base = [c for c in df.columns if not c.startswith(("hazard_", "damage_ratio_", "loss_kes_", "tiv_model", "location_flag"))]
         df[base + ["location_flag"] + hazard_cols].to_csv(PORT / f"{name}_with_hazard.csv", index=False)
-        to_geojson(df, OUT / f"buildings_{name}.geojson")
+        to_geojson(df, weights[name], OUT / f"buildings_{name}.geojson")
+    moved = snap_gazetteer(OUT / "gazetteer.json", water | lake_mask, lake, (dx, dy, x0, y0))
+    print("gazetteer points moved off water:", ", ".join(moved) or "none")
 
     # ---- river + border ----
     (OUT / "river.geojson").write_text((REF / "nzoia_river_osm.geojson").read_text(encoding="utf-8"))
@@ -233,17 +298,25 @@ def main():
         "onsetRp": ONSET_RP,
         "severityRefM": SEVERITY_REF_M,
         "cellKm2": round(cell_km2, 3),
-        "floodLandKm2": {str(rp): round(float(((rasters[rp] > 0) & ~lake_mask).sum()) * cell_km2, 1) for rp in RPS},
-        "maxDepthLand": {str(rp): round(float(rasters[rp][~lake_mask].max()), 2) for rp in RPS},
+        "floodLandKm2": {str(rp): round(float(((rasters[rp] > 0) & land).sum()) * cell_km2, 1) for rp in RPS},
+        "maxDepthLand": {str(rp): round(float(rasters[rp][land].max()), 2) for rp in RPS},
         "lakeWetShare": round(float((wet_any & lake_mask).sum() / wet_any.sum()), 3),
-        "starterFlags": {k: int((starter.location_flag == k).sum()) for k in ("KE", "UG", "LAKE")},
+        "permanentWater": {"ruleD10M": WATER_D10_M, "cells": int(water.sum()), "km2": round(float(water.sum()) * cell_km2, 1)},
+        "starterFlags": {k: int((starter.location_flag == k).sum()) for k in ("KE", "UG", "LAKE", "WATER")},
         "starterTivCsvTotal": float(starter.tiv_kes.sum()),
         "bookStrata": {k: int(v) for k, v in book.stratum.value_counts().items()},
+        "bookWeights": {k: round(float(v), 4) for k, v in book.groupby("stratum").sample_weight.first().items()},
         "curves": {c: {"k": k, "cap": cap} for c, (k, cap) in CLASS_CURVE.items()},
-        "portfolios": {"book": portfolio_stats(book), "starter": portfolio_stats(starter), "starterKenya": portfolio_stats(starter[starter.location_flag == "KE"])},
+        "portfolios": {
+            "book": portfolio_stats(book, weights["book"]),  # weighted back to population (what the app shows)
+            "bookUnweighted": portfolio_stats(book, pd.Series(1.0, index=book.index)),  # the flood-plain-enriched sample as drawn
+            "starter": portfolio_stats(starter, weights["starter"]),  # cleaned: lake and permanent-water rows excluded
+            "starterRaw": portfolio_stats(starter, pd.Series(1.0, index=starter.index)),  # as provided
+            "starterKenya": portfolio_stats(starter, (starter.location_flag == "KE").astype(float)),
+        },
     }
     (OUT / "stats.json").write_text(json.dumps(stats, indent=1))
-    print(f"flood cells: {len(feats)}  book: {len(book)}  starter: {len(starter)}  starter flags: {stats['starterFlags']}")
+    print(f"flood cells: {len(feats)} (permanent water {int(water.sum())})  book: {len(book)}  starter: {len(starter)}  starter flags: {stats['starterFlags']}")
     for k, p in stats["portfolios"].items():
         print(f"{k:13s} TIV {p['tiv']/1e6:>9,.0f} M  wet@100 {p['perRp']['100']['buildingsWet']:>4}  loss@100 {p['perRp']['100']['loss']/1e6:>8,.2f} M  AAL {p['aal']/1e6:>7,.2f} M")
 

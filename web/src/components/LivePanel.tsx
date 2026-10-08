@@ -259,15 +259,15 @@ export default function LivePanel({ nd, reading, onReading, scenario, trigger, o
           <Tile label="Return period">{rp ? `1-in-${rp < 10 ? rp.toFixed(1) : Math.round(rp)}` : "in bank"}</Tile>
           <Tile label="Flow" hint={replayDay ? "GloFAS" : "fitted"}>{flow ? `${Math.round(flow).toLocaleString("en-KE")} m³/s` : "—"}</Tile>
           <Tile label="Buildings flooded">
-            <AnimatedValue value={scenario?.wet ?? 0} format={fmtInt} />
+            <AnimatedValue value={scenario?.wet ?? 0} format={fmtInt} duration={0.3} />
           </Tile>
           <div className="col-span-2 rounded-xl bg-amber-300/10 px-3 py-2.5 ring-1 ring-amber-300/25">
             <div className="text-[10px] uppercase tracking-wider text-slate-400">Event loss estimate</div>
             <div className="font-display text-[18px] font-semibold tabular-nums text-amber-200">
-              <AnimatedValue value={scenario?.loss ?? 0} format={fmtKes} />
+              <AnimatedValue value={scenario?.loss ?? 0} format={fmtKes} duration={0.3} />
             </div>
             <div className="text-[11px] text-slate-500">
-              <AnimatedValue value={scenario?.tivWet ?? 0} format={fmtKes} /> of insured value in the water
+              <AnimatedValue value={scenario?.tivWet ?? 0} format={fmtKes} duration={0.3} /> of insured value in the water
             </div>
           </div>
         </div>

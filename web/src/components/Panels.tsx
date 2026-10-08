@@ -44,7 +44,7 @@ export function lossesOf(res: PortfolioResult): Record<number, number> {
 }
 
 export function Brand({ stats, portfolio, res, aiCount, onReport, theme, onToggleTheme }: { stats: Stats; portfolio: PortfolioView; res: PortfolioResult; aiCount: number; onReport: () => void; theme: Theme; onToggleTheme: () => void }) {
-  const flagged = stats.starterFlags.UG + stats.starterFlags.LAKE;
+  const excluded = stats.starterFlags.LAKE + stats.starterFlags.WATER;
   return (
     <div className="glass panel rounded-2xl px-4 py-3">
       <div className="flex items-center gap-3">
@@ -68,7 +68,7 @@ export function Brand({ stats, portfolio, res, aiCount, onReport, theme, onToggl
           </span>
         ) : (
           <span className="text-rose-200/80">
-            {flagged} of {stats.portfolios.starter.count} starter locations under review with the hosts
+            {excluded} of {stats.portfolios.starterRaw.count} starter locations are in the lake and left out of the losses; {stats.starterFlags.UG} are in Uganda
           </span>
         )}
       </div>
@@ -164,14 +164,18 @@ export function Controls({ stats, res, s, a, compact }: { stats: Stats; res: Por
           onChange={a.setPortfolio}
           options={[
             ["book", `Risk Forge book (${stats.portfolios.book.count.toLocaleString("en-KE")})`],
-            ["starter", `Starter CSV (${stats.portfolios.starter.count})`],
+            ["starter", `Starter CSV (${stats.portfolios.starterRaw.count})`],
           ]}
         />
         {s.portfolio === "book" ? (
           <p className="mt-2 text-[11px] leading-snug text-slate-500">
-            Placed by population with a town uplift for insurance take-up. {stats.bookStrata.floodplain} buildings drawn from the floodplain zone so flood risk can be analysed; each row carries a sample weight.
+            Placed by population with a town uplift for insurance take-up, never on the river channel. The flood plain is over-sampled ({stats.bookStrata.floodplain} of {stats.portfolios.book.count.toLocaleString("en-KE")}) so there is enough to study, then weighted back (×{stats.bookWeights.floodplain.toFixed(2)}) so totals match where people live.
           </p>
         ) : (
+          <>
+          <p className="mt-2 text-[11px] leading-snug text-slate-500">
+            1-in-100 loss {kes(stats.portfolios.starterRaw.perRp["100"].loss)} as provided, {kes(stats.portfolios.starter.perRp["100"].loss)} with the {stats.starterFlags.LAKE + stats.starterFlags.WATER} lake points removed (shown), {kes(stats.portfolios.starterKenya.perRp["100"].loss)} for Kenya only.
+          </p>
           <label className="mt-2 flex cursor-pointer items-center justify-between gap-3 text-[12px] text-slate-300">
             <span className="flex items-center gap-2">
               <span className="h-2 w-2 rounded-full" style={{ background: ISSUE_COLOUR }} />
@@ -179,6 +183,7 @@ export function Controls({ stats, res, s, a, compact }: { stats: Stats; res: Por
             </span>
             <input type="checkbox" className="toggle" checked={s.showIssues} onChange={(e) => a.setShowIssues(e.target.checked)} />
           </label>
+          </>
         )}
       </Section>
 

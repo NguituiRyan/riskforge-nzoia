@@ -254,7 +254,9 @@ export default function MapScene(props: Props) {
 
       const d = depthExprAt(startRp);
       map.addLayer({ id: "border", type: "line", source: "border", paint: { "line-color": "#e2e8f0", "line-opacity": 0.55, "line-width": 1.2, "line-dasharray": [3, 2] } });
-      map.addLayer({ id: "flood-fill", type: "fill", source: "flood", paint: { "fill-color": ramp(d, DEPTH_STOPS), "fill-opacity": ["case", [">", d, 0.01], 0.32, 0] } });
+      // permanent water (river channel, lake edge): flat, never extruded as flood
+      map.addLayer({ id: "perm-water", type: "fill", source: "flood", filter: ["has", "pw"], paint: { "fill-color": "#2b7bb9", "fill-opacity": 0.42 } });
+      map.addLayer({ id: "flood-fill", type: "fill", source: "flood", filter: ["!", ["has", "pw"]], paint: { "fill-color": ramp(d, DEPTH_STOPS), "fill-opacity": ["case", [">", d, 0.01], 0.32, 0] } });
       map.addLayer({ id: "river-glow", type: "line", source: "river", layout: { "line-join": "round", "line-cap": "round" }, paint: { "line-color": "#38bdf8", "line-width": ["interpolate", ["linear"], ["zoom"], 7, 5, 12, 14], "line-blur": 6, "line-opacity": 0.45 } });
       map.addLayer({ id: "river-core", type: "line", source: "river", layout: { "line-join": "round", "line-cap": "round" }, paint: { "line-color": "#bae6fd", "line-width": ["interpolate", ["linear"], ["zoom"], 7, 1.1, 12, 3], "line-opacity": 0.9 } });
       map.addLayer({
@@ -308,7 +310,7 @@ export default function MapScene(props: Props) {
           "fill-extrusion-opacity": 0.78,
         },
       });
-      map.setFilter("water", [">", d, 0.01]);
+      map.setFilter("water", ["all", ["!", ["has", "pw"]], [">", d, 0.01]]);
       map.addLayer({
         id: "buildings",
         type: "fill-extrusion",
@@ -401,7 +403,7 @@ export default function MapScene(props: Props) {
     const issues = showIssues && portfolio === "starter";
     // zero-height extrusions still draw a flat top, so hide cells that are dry at the shown return period;
     // during an animation keep every cell that is wet at either end, then tighten at the last frame
-    const setWet = (rp: number) => map.setFilter("water", [">", depthExprAt(rp), 0.01]);
+    const setWet = (rp: number) => map.setFilter("water", ["all", ["!", ["has", "pw"]], [">", depthExprAt(rp), 0.01]]);
     setWet(Math.max(from, to));
     const apply = (rp: number) => {
       const d = depthExprAt(rp);

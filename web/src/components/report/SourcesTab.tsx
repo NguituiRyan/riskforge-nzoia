@@ -48,8 +48,8 @@ export default function SourcesTab({ stats, baseBuildings, res, aiRows, portfoli
     ["One flood per event across the whole reach", "Every building takes the same return-period map in a scenario (fully correlated); reasonable for one river reach."],
     ["Depth between maps", "Linear in log(return period) between the six JRC maps; 1-in-250 interpolated between 200 and 500."],
     ["Insured value = floor area × cost/m²", "Rounded to KES 5,000, per the dataset metadata; the starter CSV's value column is 10× this."],
-    ["Lake Victoria masked", "86% of the raw 'flooded' cells in the 1-in-100 map were lake water; buildings there are flagged, not modelled as land."],
-    ["Risk Forge book placement", "WorldPop population × insurance uptake (urban 4, peri-urban 1.5, rural 1); 15% drawn from the floodplain, with sample weights."],
+    ["Lake Victoria and permanent water masked", `${Math.round(stats.lakeWetShare * 100)}% of the raw 'flooded' cells were lake water. A cell already ≥ ${stats.permanentWater.ruleD10M} m deep at 1-in-10 is the river channel or lake edge (${stats.permanentWater.cells} cells): drawn as water, never a building's hazard. Starter rows in the lake are left out of the losses.`],
+    ["Risk Forge book placement", `WorldPop population × insurance uptake (urban 4, peri-urban 1.5, rural 1), never on permanent water. 15% of rows from the flood plain, 85% from the rest; totals weighted back to population (×${stats.bookWeights.floodplain.toFixed(2)} and ×${stats.bookWeights.basin.toFixed(2)}).`],
     ["River node stage table", "Stage → return period anchored on the 2.8 m alert level; replace with WRA's rating curve."],
     ["Building squares in 3D are symbolic", "600 m squares so they read at basin scale; heights scale with value. Not footprints."],
   ];
@@ -68,8 +68,8 @@ ${assumptions.map(([a, why]) => `- ${a}: ${why}`).join("\n")}
 
 ## Use of synthetic data
 - Every building in both portfolios is synthetic; none is a real client property. The interface labels them "synthetic" throughout.
-- Starter CSV: ${stats.starterFlags.UG} rows fall in Uganda and ${stats.starterFlags.LAKE} inside Lake Victoria (raised with the hosts); its tiv_kes column is 10x floor area x cost.
-- Risk Forge book: ${stats.portfolios.book.count} synthetic buildings placed on real WorldPop population on Kenyan land; attributes drawn from the metadata ranges.
+- Starter CSV: ${stats.starterFlags.UG} rows fall in Uganda and ${stats.starterFlags.LAKE} inside Lake Victoria (raised with the hosts); its tiv_kes column is 10x floor area x cost. Lake rows are left out of the losses: 1-in-100 loss ${kes(stats.portfolios.starterRaw.perRp["100"].loss)} as provided, ${kes(stats.portfolios.starter.perRp["100"].loss)} cleaned, ${kes(stats.portfolios.starterKenya.perRp["100"].loss)} for Kenyan rows only.
+- Risk Forge book: ${stats.portfolios.book.count} synthetic buildings placed on real WorldPop population on Kenyan land, never on the river channel or lake edge; attributes drawn from the metadata ranges. The flood plain is over-sampled (${stats.bookStrata.floodplain} rows) and the totals are weighted back to population; unweighted, the sample would show ${kes(stats.portfolios.bookUnweighted.perRp["100"].loss)} at 1-in-100.
 
 ## AI feature
 1. Exposure intake: an underwriter pastes a broker's free-text schedule; Claude returns rows shaped like exposure_nzoia_synthetic.csv (class, count, floor area, value, place from our gazetteer, confidence, assumptions). The engine geocodes them, attaches the JRC depths, applies the damage curves and shows the change in AAL and 1-in-100 loss; the underwriter approves before the rows enter the book. Instructions hidden in the pasted text are treated as data (prompt-injection test included in the demo).
@@ -86,6 +86,7 @@ ${KEY_RPS.map((r) => `- 1-in-${r}${r === 250 ? " (interpolated)" : ""}: ${kes(re
 - No Kenyan claims data to calibrate the curves; class parameters are adapted.
 - Full spatial correlation per event; no policy terms (deductibles, limits) applied.
 - GloFAS is model output; 29 years is short for 1-in-500; the river-node stage table is an assumption.
+- Hosting: the prototype runs on Vercel (Mumbai) and calls Claude (US). Production would host in Kenya and send Claude only anonymised text, or use an open model.
 `;
 
   return (

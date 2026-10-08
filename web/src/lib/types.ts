@@ -4,8 +4,9 @@ export const RPS: RP[] = [10, 20, 50, 100, 200, 500];
 export type HousingClass = "informal_iron_sheet" | "semi_permanent" | "permanent_masonry" | "concrete_rcc";
 export const CLASSES: HousingClass[] = ["informal_iron_sheet", "semi_permanent", "permanent_masonry", "concrete_rcc"];
 
-/** KE = Kenyan land, UG = Ugandan land, LAKE = inside Lake Victoria (invalid location) */
-export type Where = "KE" | "UG" | "LAKE";
+/** KE = Kenyan land, UG = Ugandan land, LAKE = inside Lake Victoria, WATER = on the river channel or lake edge
+ *  (a cell >= 3.5 m deep at 1-in-10). LAKE and WATER rows are excluded from portfolio totals. */
+export type Where = "KE" | "UG" | "LAKE" | "WATER";
 
 export interface BuildingProps {
   id: string;
@@ -20,6 +21,8 @@ export interface BuildingProps {
   settlement?: string;
   density_class?: "urban" | "peri_urban" | "rural";
   stratum?: "floodplain" | "basin";
+  /** weight in portfolio totals: the book's sample weight; 1 if absent; 0 = excluded (lake, permanent water) */
+  w?: number;
   /** "ai" for rows added through the Claude exposure ingestion and approved by the underwriter */
   src?: "ai";
   confidence?: number;
@@ -43,11 +46,15 @@ export interface Stats {
   floodLandKm2: Record<string, number>;
   maxDepthLand: Record<string, number>;
   lakeWetShare: number;
+  permanentWater: { ruleD10M: number; cells: number; km2: number };
   starterFlags: Record<Where, number>;
   starterTivCsvTotal: number;
   bookStrata: Record<string, number>;
+  bookWeights: Record<string, number>;
   curves: Record<HousingClass, { k: number; cap: number }>;
-  portfolios: { book: PortfolioStats; starter: PortfolioStats; starterKenya: PortfolioStats };
+  /** book: weighted to population; bookUnweighted: the flood-plain-enriched sample as drawn;
+   *  starter: cleaned (lake / permanent-water rows excluded); starterRaw: as provided; starterKenya: Kenyan rows only */
+  portfolios: { book: PortfolioStats; bookUnweighted: PortfolioStats; starter: PortfolioStats; starterRaw: PortfolioStats; starterKenya: PortfolioStats };
 }
 
 /** book = Risk Forge synthetic book placed on population; starter = the hosts' starter CSV (with location issues) */

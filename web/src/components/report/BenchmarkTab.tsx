@@ -9,7 +9,7 @@ const MODELS = ["Moody's RMS (Flood HD)", "Verisk (Inland Flood)", "JBA Global F
 const FACTS: [string, string[]][] = [
   ["Kenya coverage", ["HD flood models in 21 countries; no Kenya model found", "Country models (US, UK, SE Asia…); no Kenya model found", "Every country, Kenya included", "Global maps, Kenya included", "Global flood model", "Global river flood via data API", "Built for the Nzoia basin"]],
   ["Hazard resolution", ["High-definition (per country)", "Down to ~5 m where LiDAR exists", "30 m", "30 m (FABDEM+)", "30 m hydrology and hydraulics", "~4 km", "~925 m (JRC maps)"]],
-  ["Event set", ["e.g. US 50,000 years; Europe 900,000 events", "10,000-year catalogue", "15 million river and surface-water events", "Return-period maps, 1-in-5 to 1-in-1,000", "10,000 to 50,000-year catalogues", "Probabilistic event sets", "6 return-period scenarios; Oasis catalogue in progress"]],
+  ["Event set", ["e.g. US 50,000 years; Europe 900,000 events", "10,000-year catalogue", "15 million river and surface-water events", "Return-period maps, 1-in-5 to 1-in-1,000", "10,000 to 50,000-year catalogues", "Probabilistic event sets", "6 return-period scenarios; stochastic catalogue next"]],
   ["Flood types", ["Inland flood", "Inland flood", "River and surface water", "River, surface water, coastal; defended and undefended", "River, surface water, coastal", "River flood (+ other hazards)", "River only, undefended"]],
   ["Climate view", ["—", "—", "—", "SSP scenarios for 2030, 2050, 2080", "Climate-conditioned catalogue (SST, El Niño)", "Adaptation cost-benefit", "Illustrative +10% frequency shift"]],
   ["Vulnerability", ["Proprietary, claims-calibrated", "Proprietary, claims-calibrated", "Proprietary", "Hazard only (pair with a loss model)", "Proprietary", "Open impact functions", "JRC Africa curves adapted per class; no claims calibration"]],
@@ -28,7 +28,8 @@ const SCORE: [string, number, number, string][] = [
   ["Fit to Kenya Re's book", 3, 1, "Nzoia geography, KES, Kenyan building classes, local gazetteer"],
   ["Live event response", 3, 1, "river node → return period → loss in seconds"],
   ["AI exposure intake", 3, 0, "broker email → priced rows, with assumptions and approval"],
-  ["Cost, speed & data residency", 3, 1, "open data, runs on a Kenyan server, stood up in days"],
+  ["Cost & speed to stand up", 3, 1, "open data, near-zero running cost, built in days"],
+  ["Data residency", 1, 2, "prototype runs in Mumbai and calls Claude in the US; production: Kenyan hosting with anonymised prompts or an open model"],
 ];
 
 const SOURCES: [string, string][] = [
@@ -53,7 +54,7 @@ export default function BenchmarkTab({ res }: ReportProps) {
               Risk Forge runs the <b>same four-stage pipeline</b> as the commercial models - hazard, vulnerability, exposure, financial engine, EP curve - built in three days on open data. It is <b>not yet a substitute</b> for a licensed vendor model: its hazard is about 30× coarser than JBA or Fathom, it runs six return-period scenarios instead of a stochastic catalogue of tens of thousands of years, it models river flooding only, and its damage curves are adapted global curves without Kenyan claims behind them.
             </p>
             <p>
-              Where it is ahead: <b>every number can be traced</b>, it is <b>built around Kenya Re's own market</b> (the Nzoia basin, KES, Kenyan building types), it <b>links a live river gauge to the loss in seconds</b>, its <b>AI turns a broker's email into priced exposure</b>, and it runs at near-zero cost on Kenyan infrastructure. The brief itself notes that vendors calibrate on proprietary claims and that no locally calibrated Kenyan flood model exists in-house.
+              Where it is ahead: <b>every number can be traced</b>, it is <b>built around Kenya Re's own market</b> (the Nzoia basin, KES, Kenyan building types), it <b>links a live river gauge to the loss in seconds</b>, its <b>AI turns a broker's email into priced exposure</b>, and it costs almost nothing to run. Not yet solved: data residency (the prototype is hosted in Mumbai and calls Claude in the US). The brief itself notes that vendors calibrate on proprietary claims and that no locally calibrated Kenyan flood model exists in-house.
             </p>
             <p className="text-slate-400">
               Our positioning: a transparent local first view and benchmark next to vendor models, and the container (Oasis-compatible) into which better hazard and Kenya Re's own claims can be plugged. On this book it gives an AAL of {kes(res.aal)} and a 1-in-100 loss of {kes(res.scenarios[100].loss)}; a vendor model on the same book would be the natural validation test.
@@ -99,7 +100,7 @@ export default function BenchmarkTab({ res }: ReportProps) {
               <b>30 m hazard:</b> swap the six JRC maps for Fathom 3.0 (free country maps for non-commercial use) or a JBA licence - same file shape, no code change.
             </li>
             <li>
-              <b>Stochastic catalogue:</b> the Oasis LMF model with 10,000 simulated years from the GloFAS frequency fit (installed, in progress).
+              <b>Stochastic catalogue:</b> the Oasis LMF model with 10,000 simulated years from the GloFAS frequency fit (next step).
             </li>
             <li>
               <b>Flood defences:</b> set where losses start from the river node's record and the county dyke inventory.

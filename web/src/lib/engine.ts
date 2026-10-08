@@ -5,6 +5,10 @@
  *                       from the flood grid for AI-added rows)
  * Step 2 vulnerability: DR = cap x Huizinga-Africa(k x depth), k and cap per housing class
  * Step 4 financial:     loss = DR x insured value; portfolio loss per return period; EP curve; AAL; PML
+ *
+ * Portfolio totals are weighted: each building carries w (the book's stratified sample weight - the flood plain is
+ * over-sampled to study it, then weighted back to population; 1 for other rows; 0 = excluded, e.g. a starter row in
+ * the lake). Counts are of buildings with w > 0, i.e. the squares on the map. Per-building figures are unweighted.
  */
 import type { BuildingProps, HousingClass, RP } from "./types";
 import { CLASSES, RPS } from "./types";
@@ -41,6 +45,9 @@ export function damageRatio(cls: HousingClass, depth: number): number {
 }
 
 export const severity = (depth: number) => Math.min(Math.max(depth, 0) / SEVERITY_REF_M, 1);
+
+/** a building's weight in portfolio totals (see the header); rows without one count once */
+export const weightOf = (b: BuildingProps): number => (typeof b.w === "number" ? b.w : 1);
 
 export function depthsOf(b: BuildingProps): Record<RP, number> {
   return Object.fromEntries(RPS.map((r) => [r, Number(b[`d${r}`]) || 0])) as Record<RP, number>;
@@ -86,12 +93,14 @@ export function scenario(buildings: BuildingProps[], rp: number): ScenarioResult
   let wet = 0;
   let tivWet = 0;
   for (const b of buildings) {
+    const w = weightOf(b);
+    if (w <= 0) continue;
     const r = buildingAt(b, rp);
-    loss += r.loss;
-    byClass[b.cls].loss += r.loss;
+    loss += r.loss * w;
+    byClass[b.cls].loss += r.loss * w;
     if (r.depth > 0) {
       wet++;
-      tivWet += b.tiv;
+      tivWet += b.tiv * w;
       byClass[b.cls].wet++;
     }
   }
@@ -124,16 +133,20 @@ export function runPortfolio(buildings: BuildingProps[]): PortfolioResult {
   const perBuildingAal = new Map<string, number>();
   const byClass = Object.fromEntries(CLASSES.map((c) => [c, { count: 0, tiv: 0, aal: 0 }])) as PortfolioResult["byClass"];
   let tiv = 0;
+  let count = 0;
   for (const b of buildings) {
     const own = Object.fromEntries(RPS.map((r) => [r, buildingAt(b, r).loss])) as Record<RP, number>;
     const a = aal(own);
-    perBuildingAal.set(b.id, a);
+    perBuildingAal.set(b.id, a); // the building's own AAL, unweighted
+    const w = weightOf(b);
+    if (w <= 0) continue;
+    count++;
     byClass[b.cls].count++;
-    byClass[b.cls].tiv += b.tiv;
-    byClass[b.cls].aal += a;
-    tiv += b.tiv;
+    byClass[b.cls].tiv += b.tiv * w;
+    byClass[b.cls].aal += a * w;
+    tiv += b.tiv * w;
   }
-  return { count: buildings.length, tiv, byClass, scenarios, aal: aal(lossByRp), perBuildingAal };
+  return { count, tiv, byClass, scenarios, aal: aal(lossByRp), perBuildingAal };
 }
 
 /** illustrative technical premium: AAL + cost of capital x (1-in-200 loss - AAL), plus an expense load */
@@ -148,6 +161,8 @@ export interface FloodGrid {
   y0: number;
   d: number;
   cells: Map<string, Record<RP, number>>;
+  /** permanent water (river channel, lake edge): >= 3.5 m deep at 1-in-10, never a building's own hazard */
+  water: Set<string>;
 }
 
 export function buildFloodGrid(fc: { features: { properties: Record<string, number>; geometry: { coordinates: number[][][] } }[] }): FloodGrid {
@@ -155,17 +170,35 @@ export function buildFloodGrid(fc: { features: { properties: Record<string, numb
   const y0 = 1.3;
   const d = 1 / 120; // 30 arc-seconds
   const cells = new Map<string, Record<RP, number>>();
+  const water = new Set<string>();
   for (const f of fc.features) {
     const [lon, lat] = f.geometry.coordinates[0][0]; // north-west corner
-    const col = Math.round((lon - x0) / d);
-    const row = Math.round((y0 - lat) / d);
-    cells.set(`${row},${col}`, Object.fromEntries(RPS.map((r) => [r, f.properties[`d${r}`] ?? 0])) as Record<RP, number>);
+    const k = `${Math.round((y0 - lat) / d)},${Math.round((lon - x0) / d)}`;
+    if (f.properties.pw) water.add(k);
+    else cells.set(k, Object.fromEntries(RPS.map((r) => [r, f.properties[`d${r}`] ?? 0])) as Record<RP, number>);
   }
-  return { x0, y0, d, cells };
+  return { x0, y0, d, cells, water };
 }
 
+const DRY = Object.fromEntries(RPS.map((r) => [r, 0])) as Record<RP, number>;
+
+export const onWater = (grid: FloodGrid, lon: number, lat: number) =>
+  grid.water.has(`${Math.floor((grid.y0 - lat) / grid.d)},${Math.floor((lon - grid.x0) / grid.d)}`);
+
+/** flood depths for a new location; a point on permanent water takes the nearest land cell (the bank) instead */
 export function hazardAt(grid: FloodGrid, lon: number, lat: number): Record<RP, number> {
   const col = Math.floor((lon - grid.x0) / grid.d);
   const row = Math.floor((grid.y0 - lat) / grid.d);
-  return grid.cells.get(`${row},${col}`) ?? (Object.fromEntries(RPS.map((r) => [r, 0])) as Record<RP, number>);
+  if (!grid.water.has(`${row},${col}`)) return grid.cells.get(`${row},${col}`) ?? DRY;
+  let best: { dist: number; key: string } | null = null;
+  for (let dr = -3; dr <= 3; dr++)
+    for (let dc = -3; dc <= 3; dc++) {
+      const key = `${row + dr},${col + dc}`;
+      if (grid.water.has(key)) continue;
+      const cx = grid.x0 + (col + dc + 0.5) * grid.d;
+      const cy = grid.y0 - (row + dr + 0.5) * grid.d;
+      const dist = Math.hypot(cx - lon, cy - lat);
+      if (!best || dist < best.dist) best = { dist, key };
+    }
+  return (best && grid.cells.get(best.key)) || DRY;
 }

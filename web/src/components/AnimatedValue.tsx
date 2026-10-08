@@ -2,7 +2,7 @@ import { useEffect, useRef } from "react";
 import gsap from "gsap";
 
 /** Tweens a number to its new value whenever it changes. */
-export default function AnimatedValue({ value, format }: { value: number; format: (n: number) => string }) {
+export default function AnimatedValue({ value, format, duration = 0.9 }: { value: number; format: (n: number) => string; duration?: number }) {
   const el = useRef<HTMLSpanElement>(null);
   const current = useRef(value);
 
@@ -10,7 +10,7 @@ export default function AnimatedValue({ value, format }: { value: number; format
     const state = { v: current.current };
     const tween = gsap.to(state, {
       v: value,
-      duration: 0.9,
+      duration,
       ease: "power2.out",
       onUpdate: () => {
         if (el.current) el.current.textContent = format(state.v);
@@ -23,7 +23,7 @@ export default function AnimatedValue({ value, format }: { value: number; format
       tween.kill();
       current.current = state.v;
     };
-  }, [value, format]);
+  }, [value, format, duration]);
 
   return <span ref={el}>{format(value)}</span>;
 }

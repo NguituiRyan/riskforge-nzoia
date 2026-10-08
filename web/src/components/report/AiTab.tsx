@@ -3,7 +3,7 @@ import { Badge, Card, Kpi, td, th, tr } from "./ui";
 import type { ReportProps } from "./Report";
 import type { BuildingProps, HousingClass } from "../../lib/types";
 import { RPS } from "../../lib/types";
-import { buildingAt, hazardAt, runPortfolio } from "../../lib/engine";
+import { buildingAt, hazardAt, onWater, runPortfolio } from "../../lib/engine";
 import { briefingSummary, resolvePath } from "../../lib/report";
 import { CLASS_UI, CLASS_LABEL, kes } from "../../lib/format";
 
@@ -77,11 +77,18 @@ export default function AiTab(p: ReportProps) {
       const tiv = Math.max(5000, Math.round(value / 5000) * 5000);
       const list: BuildingProps[] = [];
       if (place) {
+        let k = 0; // position on a spiral round the place; spots on the river channel or lake edge are skipped
         for (let i = 0; i < row.count; i++) {
-          const r = Math.min(120 * Math.sqrt(i + 1), 900);
-          const ang = i * 2.39996;
-          const lat = place.lat + (r * Math.cos(ang)) / 111_320;
-          const lon = place.lon + (r * Math.sin(ang)) / (111_320 * Math.cos((place.lat * Math.PI) / 180));
+          let lat = place.lat;
+          let lon = place.lon;
+          for (let tries = 0; tries < 60; tries++, k++) {
+            const r = Math.min(120 * Math.sqrt(k + 1), 900);
+            const ang = k * 2.39996;
+            lat = place.lat + (r * Math.cos(ang)) / 111_320;
+            lon = place.lon + (r * Math.sin(ang)) / (111_320 * Math.cos((place.lat * Math.PI) / 180));
+            if (!onWater(grid, lon, lat)) break;
+          }
+          k++;
           const hz = hazardAt(grid, lon, lat);
           const b: BuildingProps = {
             id: `AI-${batch}-${String(++n).padStart(3, "0")}`,

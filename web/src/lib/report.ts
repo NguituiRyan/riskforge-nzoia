@@ -2,7 +2,7 @@
 import type { Feature, Polygon } from "geojson";
 import type { BuildingProps, HousingClass, Place, RP } from "./types";
 import { CLASSES, RPS } from "./types";
-import { buildingAt, KEY_RPS, severity, technicalPremium, type PortfolioResult, type ScenarioResult } from "./engine";
+import { buildingAt, KEY_RPS, severity, technicalPremium, weightOf, type PortfolioResult, type ScenarioResult } from "./engine";
 import { CLASS_LABEL } from "./format";
 
 const FOOTPRINT_HALF_M = 300;
@@ -38,24 +38,26 @@ export interface Accumulation {
   loss100: number;
 }
 
-/** insured value inside the 1-in-100 flood footprint, by settlement - where the book is concentrated */
+/** insured value inside the 1-in-100 flood footprint, by settlement - where the book is concentrated (weighted, like the totals) */
 export function accumulation(buildings: BuildingProps[], places: Place[]): Accumulation[] {
   const by = new Map<string, Accumulation>();
   for (const b of buildings) {
+    const w = weightOf(b);
     const r = buildingAt(b, 100);
-    if (r.depth <= 0) continue;
+    if (r.depth <= 0 || w <= 0) continue;
     const s = b.settlement && b.settlement !== "other" ? b.settlement : nearestPlace(places, b.lon, b.lat);
     const a = by.get(s) ?? { settlement: s, buildings: 0, tivInFootprint: 0, loss100: 0 };
     a.buildings++;
-    a.tivInFootprint += b.tiv;
-    a.loss100 += r.loss;
+    a.tivInFootprint += b.tiv * w;
+    a.loss100 += r.loss * w;
     by.set(s, a);
   }
   return [...by.values()].sort((x, y) => y.tivInFootprint - x.tivInFootprint);
 }
 
 export function topRisks(buildings: BuildingProps[], res: PortfolioResult, n = 10) {
-  return [...buildings]
+  return buildings
+    .filter((b) => weightOf(b) > 0) // rows left out of the portfolio (e.g. in the lake) are not its risks
     .map((b) => ({ b, aal: res.perBuildingAal.get(b.id) ?? 0, at100: buildingAt(b, 100) }))
     .filter((x) => x.aal > 0)
     .sort((x, y) => y.aal - x.aal)
@@ -90,6 +92,8 @@ export function briefingSummary(
       "Damage curves: Huizinga et al. 2017 JRC Africa residential, adapted per class after Englhardt et al. 2019",
       "Whole reach floods at one return period per event",
       "1-in-250 interpolated between the 200- and 500-year maps",
+      "Cells already >= 3.5 m deep at 1-in-10 are the river channel or lake edge: no buildings there",
+      "Totals are weighted: the flood plain is over-sampled, then weighted back to population",
     ],
   };
 }
@@ -111,12 +115,12 @@ const csvCell = (v: unknown) => {
 };
 
 export function toCsv(buildings: BuildingProps[], res: PortfolioResult): string {
-  const head = ["loc_id", "lat", "lon", "housing_class", "floor_area_m2", "cost_per_m2_kes", "tiv_kes", "synthetic", "source", "settlement", "location_flag"];
+  const head = ["loc_id", "lat", "lon", "housing_class", "floor_area_m2", "cost_per_m2_kes", "tiv_kes", "synthetic", "source", "settlement", "location_flag", "weight_in_totals"];
   for (const rp of RPS) head.push(`hazard_depth_m_rp${rp}`, `hazard_severity_rp${rp}`, `damage_ratio_rp${rp}`, `loss_kes_rp${rp}`);
   head.push("aal_kes");
   const lines = [head.join(",")];
   for (const b of buildings) {
-    const row: unknown[] = [b.id, b.lat, b.lon, b.cls, b.area, b.cost, Math.round(b.tiv), true, b.src === "ai" ? "AI-ingested (Claude), approved by underwriter" : "synthetic", b.settlement ?? "", b.where];
+    const row: unknown[] = [b.id, b.lat, b.lon, b.cls, b.area, b.cost, Math.round(b.tiv), true, b.src === "ai" ? "AI-ingested (Claude), approved by underwriter" : "synthetic", b.settlement ?? "", b.where, weightOf(b)];
     for (const rp of RPS as RP[]) {
       const r = buildingAt(b, rp);
       row.push(r.depth.toFixed(2), severity(r.depth).toFixed(3), r.dr.toFixed(3), Math.round(r.loss));

@@ -11,7 +11,7 @@ import { CLASS_UI, CLASS_LABEL, kes } from "../../lib/format";
 
 const pct = (x: number, d = 2) => `${(x * 100).toFixed(d)}%`;
 
-export default function SummaryTab({ stats, buildings, res, baseRes, aiRows, gazetteer, live, onPickBuilding }: ReportProps) {
+export default function SummaryTab({ stats, portfolio, buildings, res, baseRes, aiRows, gazetteer, live, onPickBuilding }: ReportProps) {
   const prem = technicalPremium(res);
   const lossByRp = Object.fromEntries(RPS.map((r) => [r, res.scenarios[r].loss])) as Record<RP, number>;
   const acc = accumulation(buildings, gazetteer).slice(0, 8);
@@ -40,6 +40,15 @@ export default function SummaryTab({ stats, buildings, res, baseRes, aiRows, gaz
           {kes(dAal)}, 1-in-100 {d100 >= 0 ? "+" : ""}
           {kes(d100)}.
         </div>
+      )}
+
+      {portfolio === "book" ? (
+        <p className="rounded-xl bg-white/[0.03] px-4 py-2.5 text-[12px] leading-snug text-slate-400">
+          <b className="text-slate-200">Totals are weighted.</b> The flood plain is over-sampled so there is enough of it to study ({stats.bookStrata.floodplain} of {stats.portfolios.book.count.toLocaleString("en-KE")} sample buildings, each counting ×
+          {stats.bookWeights.floodplain.toFixed(2)}; the rest ×{stats.bookWeights.basin.toFixed(2)}), then weighted back so the book matches where people live. Unweighted, the same sample would show {kes(stats.portfolios.bookUnweighted.perRp["100"].loss)} at 1-in-100.
+        </p>
+      ) : (
+        <StarterCleaning stats={stats} />
       )}
 
       <Pipeline stats={stats} res={res} />
@@ -92,7 +101,7 @@ export default function SummaryTab({ stats, buildings, res, baseRes, aiRows, gaz
             Each row applies one JRC return-period map to the whole book (one flood across the reach). 1-in-250 interpolates each building's depth between the 200- and 500-year maps.
           </p>
         </Card>
-        <Card title="Hazard: land under water by return period" hint="real JRC data · lake masked" className="lg:col-span-2">
+        <Card title="Hazard: land under water by return period" hint="real JRC data · lake and river channel masked" className="lg:col-span-2">
           <HazardBars km2={stats.floodLandKm2} maxDepth={stats.maxDepthLand} />
           <p className="mt-1 text-[11px] text-slate-500">The flooded area grows only ~24% from 1-in-10 to 1-in-500: in the lower Nzoia the flood plain fills even in common floods, so frequent events drive the loss.</p>
         </Card>
@@ -249,6 +258,50 @@ function Pipeline({ stats, res }: Pick<ReportProps, "stats" | "res">) {
           </div>
         ))}
       </div>
+    </Card>
+  );
+}
+
+/** the hosts' file as provided, with the lake points removed, and Kenyan rows only */
+function StarterCleaning({ stats }: { stats: ReportProps["stats"] }) {
+  const p = stats.portfolios;
+  const rows: [string, (typeof p)["starter"], string][] = [
+    ["As provided", p.starterRaw, "all 500 rows"],
+    ["Cleaned (shown)", p.starter, `${stats.starterFlags.LAKE + stats.starterFlags.WATER} lake points removed`],
+    ["Kenya only", p.starterKenya, `${stats.starterFlags.UG} Uganda rows also removed`],
+  ];
+  const lakeShare = (p.starterRaw.perRp["100"].loss - p.starter.perRp["100"].loss) / Math.max(p.starterRaw.perRp["100"].loss, 1);
+  return (
+    <Card title="Starter file: as provided vs cleaned" hint="the hosts' 500 locations">
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[520px] text-[13px]">
+          <thead>
+            <tr>
+              <th className={th}>Version</th>
+              <th className={`${th} text-right`}>Locations</th>
+              <th className={`${th} text-right`}>Flooded at 1-in-100</th>
+              <th className={`${th} text-right`}>1-in-100 loss</th>
+              <th className={`${th} text-right`}>AAL</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map(([name, s, why]) => (
+              <tr key={name} className={tr}>
+                <td className={td}>
+                  {name} <span className="text-[11px] text-slate-500">· {why}</span>
+                </td>
+                <td className={`${td} text-right`}>{s.count}</td>
+                <td className={`${td} text-right`}>{s.perRp["100"].buildingsWet}</td>
+                <td className={`${td} text-right`}>{kes(s.perRp["100"].loss)}</td>
+                <td className={`${td} text-right`}>{kes(s.aal)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <p className="mt-2 text-[11px] leading-snug text-slate-500">
+        {stats.starterFlags.LAKE} rows sit inside Lake Victoria, where the flood maps read deep water: they made {pct(lakeShare, 0)} of the as-provided loss. The Kenyan rows barely touch the flood plain, which is why we built the 1,200-building book.
+      </p>
     </Card>
   );
 }

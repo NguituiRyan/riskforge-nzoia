@@ -151,9 +151,13 @@
 },
 {
 "name": "Port Victoria",
-"lat": 0.0897,
-"lon": 33.993,
-"kind": "town"
+"lat": 0.0875,
+"lon": 33.9875,
+"kind": "town",
+"orig": [
+0.0897,
+33.993
+]
 },
 {
 "name": "Rukala",

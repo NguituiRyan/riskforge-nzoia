@@ -35,6 +35,7 @@ export const WHERE_LABEL: Record<Where, string> = {
   KE: "Kenyan land",
   UG: "Uganda (outside Kenya)",
   LAKE: "Inside Lake Victoria",
+  WATER: "On the river channel or lake edge",
 };
 
 export const ISSUE_COLOUR = "#f43f5e";

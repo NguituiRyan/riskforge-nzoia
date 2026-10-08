@@ -2,11 +2,14 @@
 
 Where buildings go (all synthetic, placed on real population):
   * Only JRC hazard-grid cells on Kenyan land (geoBoundaries) and outside Lake Victoria (Natural Earth).
+  * Never on permanent water: cells already >= 3.5 m deep at 1-in-10 are the river channel or the lake edge
+    (at ~925 m a narrow channel cell carries channel depth), so nobody lives there.
   * Weight per ~925 m cell = WorldPop 2020 population (UN-adjusted, 1 km) x an insurance-uptake factor
     (urban 4, peri-urban 1.5, rural 1) - ASSUMPTION: insured property concentrates in towns.
   * Stratified: 15% of rows from the floodplain zone (land wet at 1-in-500 plus a ~2 km buffer),
     85% from the rest of the basin. sample_weight re-weights rows back to a population-proportional book.
-  * Each building is jittered uniformly inside its cell, so it keeps that cell's flood depth.
+  * Each building is jittered uniformly inside its cell, so it keeps that cell's flood depth; a jitter that
+    lands outside Kenya or inside the lake polygon is drawn again.
 
 What they are (ranges from the dataset metadata, section 5):
   housing class mix depends on density (urban / peri-urban / rural); floor area and cost per m2 are drawn
@@ -31,6 +34,7 @@ HAZ = ROOT / "team_b_nzoia"
 
 FLOODPLAIN_SHARE = 0.15
 BUFFER_CELLS = 2  # ~1.85 km either side of the 1-in-500 footprint
+WATER_D10_M = 3.5  # ASSUMPTION: >= 3.5 m deep at 1-in-10 = permanent water (river channel or lake edge); mirrors prepare_3d_data.py
 UPTAKE = {"urban": 4.0, "peri_urban": 1.5, "rural": 1.0}
 DENSITY_EDGES = (400, 1500)  # people per km2: rural < 400 <= peri-urban < 1500 <= urban
 
@@ -84,6 +88,8 @@ def main():
     im = Image.open(HAZ / "nzoia_rp500y.tif")
     d500 = np.array(im, dtype=np.float32)
     d500 = np.where((d500 > 0) & (d500 < 1e6), d500, 0.0)
+    d10 = np.array(Image.open(HAZ / "nzoia_rp10y.tif"), dtype=np.float32)
+    d10 = np.where((d10 > 0) & (d10 < 1e6), d10, 0.0)
     dx, dy = im.tag_v2[33550][:2]
     x0, y0 = im.tag_v2[33922][3:5]
     nr, nc = d500.shape
@@ -104,9 +110,12 @@ def main():
     pop = np.zeros_like(lon)
     pop[ok] = pop_grid[wr[ok], wc[ok]]
 
-    kenya = inside(polygon_paths(REF / "ken_adm0_geoboundaries.geojson"), centres).reshape(nr, nc)
-    lake = inside(polygon_paths(REF / "lake_victoria_ne10m.geojson", "Lake Victoria"), centres).reshape(nr, nc)
-    eligible = kenya & ~lake & (pop > 0)
+    kenya_paths = polygon_paths(REF / "ken_adm0_geoboundaries.geojson")
+    lake_paths = polygon_paths(REF / "lake_victoria_ne10m.geojson", "Lake Victoria")
+    kenya = inside(kenya_paths, centres).reshape(nr, nc)
+    lake = inside(lake_paths, centres).reshape(nr, nc)
+    water = (d10 >= WATER_D10_M) & ~lake
+    eligible = kenya & ~lake & ~water & (pop > 0)
 
     cell_km2 = (dx * 111.32) * (dy * 111.32) * np.cos(np.radians(lat))
     density = pop / cell_km2
@@ -115,7 +124,7 @@ def main():
     weight[~eligible] = 0
 
     # floodplain zone = wet at 1-in-500 (land) dilated by BUFFER_CELLS
-    wet = (d500 > 0) & ~lake
+    wet = (d500 > 0) & ~lake & ~water
     zone = wet.copy()
     for _ in range(BUFFER_CELLS):
         z = zone.copy()
@@ -143,6 +152,14 @@ def main():
     r_i, c_i = np.unravel_index(idx, (nr, nc))
     b_lon = x0 + (c_i + rng.uniform(0.05, 0.95, args.n)) * dx
     b_lat = y0 - (r_i + rng.uniform(0.05, 0.95, args.n)) * dy
+    # a cell whose centre is on land can still reach over the shore or the border: draw the jitter again
+    for _ in range(50):
+        pts = np.c_[b_lon, b_lat]
+        bad = ~inside(kenya_paths, pts) | inside(lake_paths, pts)
+        if not bad.any():
+            break
+        b_lon[bad] = x0 + (c_i[bad] + rng.uniform(0.05, 0.95, bad.sum())) * dx
+        b_lat[bad] = y0 - (r_i[bad] + rng.uniform(0.05, 0.95, bad.sum())) * dy
     b_dclass = dclass[r_i, c_i]
 
     classes = list(AREA)
@@ -170,7 +187,7 @@ def main():
     OUT.mkdir(parents=True, exist_ok=True)
     df = pd.DataFrame(rows)
     df.to_csv(OUT / "exposure_nzoia_riskforge_book.csv", index=False)
-    print(f"wrote {len(df)} rows -> {OUT / 'exposure_nzoia_riskforge_book.csv'}")
+    print(f"wrote {len(df)} rows -> {OUT / 'exposure_nzoia_riskforge_book.csv'}  (permanent-water cells excluded: {int(water.sum())})")
     print("strata:", df.stratum.value_counts().to_dict(), " density:", df.density_class.value_counts().to_dict())
     print("classes:", df.housing_class.value_counts().to_dict())
     print(f"TIV KES {df.tiv_kes.sum()/1e9:.2f} bn  median {df.tiv_kes.median():,.0f}  max {df.tiv_kes.max():,.0f}")
