@@ -57,6 +57,9 @@ export async function runOasis(name: string, buildings: BuildingProps[], program
         : `Could not reach the Oasis runner (${OASIS_URL}). Check the connection and try again.`,
     );
   }
+  // a free host that was asleep answers with a "starting" page instead of JSON while it wakes up
+  if (!(res.headers.get("content-type") ?? "").includes("json"))
+    throw new Error("The Oasis runner is waking up (the free host sleeps when idle). Try again in a minute.");
   const data = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
   if (!res.ok) throw new Error((data as { error?: string }).error ?? `HTTP ${res.status}`);
   return data as OasisResult;
