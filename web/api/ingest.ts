@@ -109,7 +109,7 @@ export async function POST(request: Request): Promise<Response> {
     n
       .toLowerCase()
       .replace(/ \([^)]*\)$/, "")
-      .replace(/(river|village|town|county|game reserve|national reserve|national park|market|bridge|centre|center)/g, " ")
+      .replace(/\b(river|village|town|county|game reserve|national reserve|national park|market|bridge|centre|center)\b/g, " ")
       .replace(/\s+/g, " ")
       .trim();
   const byCore = new Map<string, string>();
