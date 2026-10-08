@@ -23,8 +23,8 @@ IMAGE="$REGION-docker.pkg.dev/$PROJECT/riskforge/$SERVICE:latest"
 "$GCLOUD" artifacts repositories describe riskforge --location "$REGION" --project "$PROJECT" >/dev/null 2>&1 ||
   "$GCLOUD" artifacts repositories create riskforge --repository-format docker --location "$REGION" --project "$PROJECT"
 
-# the warm-up compiles the Oasis kernel during the build: give it a bigger machine and time
-"$GCLOUD" builds submit "$CTX" --tag "$IMAGE" --project "$PROJECT" --region "$REGION" --machine-type e2-highcpu-8 --timeout 3600s
+# the warm-up compiles the Oasis kernel during the build (a few minutes); the default machine stays in the free tier
+"$GCLOUD" builds submit "$CTX" --tag "$IMAGE" --project "$PROJECT" --region "$REGION" --timeout 3600s
 
 "$GCLOUD" run deploy "$SERVICE" --image "$IMAGE" --project "$PROJECT" --region "$REGION" \
   --allow-unauthenticated --execution-environment gen2 --cpu 2 --memory 4Gi --cpu-boost \
