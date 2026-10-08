@@ -70,7 +70,11 @@ RGB LED              -> GPIO 25 / 26 / 27 through 220 Ω (common cathode to GND)
 ## Build and flash
 
 1. In the Arduino IDE, install the **esp32 by Espressif** board package, then select your board (e.g. *ESP32 Dev Module*) and its COM port.
-   - **ESP32-S3 DevKit (N8R2, N16R8 …):** select *ESP32S3 Dev Module* and leave the other Tools settings at their defaults. Plug into the USB port marked **COM** or **UART**, not the one marked **USB** (or set *USB CDC On Boot: Enabled* if you only have that one). Wire the sensor to the pins labelled 3V3, 5, 18 and G. The alert colour shows on the board's own RGB LED.
+   - **ESP32-S3 (Super Mini, other minis, DevKit):**
+     - select *ESP32S3 Dev Module* and set *USB CDC On Boot: Enabled*; leave the other Tools settings at their defaults;
+     - wire the sensor to **3V3, GND, 5 (Trig) and 6 (Echo)**: Echo moves to GPIO 6 because the minis don't break out GPIO 18;
+     - first upload: hold **BOOT**, tap **RST**, release BOOT, then select the COM port that appears and click Upload; press RST when it finishes;
+     - the alert colour shows on the board's own RGB LED.
 2. In `riskforge_node/`, copy `secrets.example.h` to **`secrets.h`** and fill it in:
    - the hotspot name and password;
    - `NODE_SECRET`, copied from the repo's `.env`.

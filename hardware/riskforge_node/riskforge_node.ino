@@ -19,8 +19,9 @@
     No resistors? AJ-SR04M only: power it from 3V3 instead of VIN and wire ECHO straight to GPIO 18 (its echo is then 3.3 V).
     AJ-SR04M: leave the R19 pads empty (mode 1, HC-SR04 compatible). The probe plugs into the board's 2-pin socket.
     Status LED: on-board LED (GPIO 2). Optional RGB LED: R GPIO 25, G GPIO 26, B GPIO 27 (220 Ω each, common cathode).
-    ESP32-S3 DevKit: same sensor pins (5, 18, 3V3, GND - all on one header). The alert colour shows on the board's own
-    RGB LED; GPIO 26-37 belong to its flash/PSRAM, so the RGB pins above are not used. Board: "ESP32S3 Dev Module".
+    ESP32-S3 (DevKit, Super Mini and other minis): ECHO moves to GPIO 6, because the minis don't break out GPIO 18.
+    Wire 3V3, GND, 5 (TRIG) and 6 (ECHO). The alert colour shows on the board's own RGB LED; GPIO 26-37 belong to the
+    flash/PSRAM, so the RGB pins above are not used. Arduino IDE: board "ESP32S3 Dev Module", USB CDC On Boot: Enabled.
 
   Mounting (AJ-SR04M)
     It can't see anything nearer than about 20 cm, so the probe must sit at least 20 cm above the HIGHEST water.
@@ -72,10 +73,11 @@ HTTPClient http;
 
 const char* NODE_ID = "RF-NZ-01";
 const int PIN_TRIG = 5;
-const int PIN_ECHO = 18;
 #if CONFIG_IDF_TARGET_ESP32S3
-const int PIN_RGB = 48;  // the DevKit's addressable RGB LED (GPIO 38 on some v1.1 boards)
+const int PIN_ECHO = 6;  // S3 minis break out GPIO 1-13 only
+const int PIN_RGB = 48;  // the board's addressable RGB LED: 48 on the DevKit and Super Mini, 47 on the LOLIN S3 Mini
 #else
+const int PIN_ECHO = 18;
 const int PIN_LED = 2;
 const int PIN_R = 25, PIN_G = 26, PIN_B = 27;
 #endif
@@ -202,6 +204,10 @@ void postReading(float levelCm) {
 
 void setup() {
   Serial.begin(115200);
+#if ARDUINO_USB_CDC_ON_BOOT
+  // native USB re-enumerates after a reset: give the Serial Monitor up to 2 s to reconnect so the boot line isn't lost
+  for (unsigned long t = millis(); !Serial && millis() - t < 2000;) delay(10);
+#endif
   pinMode(PIN_TRIG, OUTPUT);
   pinMode(PIN_ECHO, INPUT);
 #if !CONFIG_IDF_TARGET_ESP32S3
