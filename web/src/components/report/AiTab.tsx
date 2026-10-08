@@ -133,7 +133,20 @@ export default function AiTab(p: ReportProps) {
           : null;
       // an approximate place (unlisted village, sub-county, ward, or only the AI's coordinates) is less certain
       const approx = !listed || row.place_match === "nearby" || row.place_match === "area" || listed.kind === "area";
-      const where = listed ? nameOf(listed.name) : coords ? `${Math.abs(row.lat).toFixed(3)}°${row.lat < 0 ? "S" : "N"} ${row.lon.toFixed(3)}°E` : row.place;
+      // only the AI's coordinates: name the nearest listed place within 10 km, if any
+      const nearestListed = !listed && coords
+        ? parsed.lookup
+            .map((g) => ({ g, km: Math.hypot((g.lon - row.lon) * Math.cos((row.lat * Math.PI) / 180), g.lat - row.lat) * 111.32 }))
+            .filter((x) => x.km <= 10)
+            .sort((a, b) => a.km - b.km)[0]
+        : undefined;
+      const where = listed
+        ? nameOf(listed.name)
+        : nearestListed
+          ? `near ${nameOf(nearestListed.g.name)}`
+          : coords
+            ? `${Math.abs(row.lat).toFixed(3)}°${row.lat < 0 ? "S" : "N"} ${row.lon.toFixed(3)}°E`
+            : row.place;
       let note = "";
       if (anchor) {
         const site = siteGroup(grid, anchor, row.count, row.siting ?? "as_placed", gi * 101 + 7, approx);

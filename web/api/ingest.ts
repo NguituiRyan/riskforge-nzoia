@@ -104,6 +104,19 @@ export async function POST(request: Request): Promise<Response> {
     const bare = g.name.replace(/ \([^)]*\)$/, "").toLowerCase();
     if (bare !== g.name.toLowerCase() && !canonical.has(bare)) canonical.set(bare, g.name);
   }
+  // looser still: "Talek River" or "Talek village" -> the first entry whose name is "Talek"
+  const coreName = (n: string) =>
+    n
+      .toLowerCase()
+      .replace(/ \([^)]*\)$/, "")
+      .replace(/(river|village|town|county|game reserve|national reserve|national park|market|bridge|centre|center)/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+  const byCore = new Map<string, string>();
+  for (const g of entries) {
+    const c = coreName(g.name);
+    if (c && !byCore.has(c)) byCore.set(c, g.name);
+  }
   const listed = entries.map((g) => {
     const extra = [g.kind, Array.isArray(g.aliases) && g.aliases.length ? `also: ${g.aliases.join(", ")}` : ""].filter(Boolean).join("; ");
     return extra ? `${g.name} [${extra}]` : g.name;
@@ -135,7 +148,7 @@ export async function POST(request: Request): Promise<Response> {
       return Response.json({ error: "The model's answer did not match the exposure schema; try rephrasing." }, { status: 502 });
     }
     const rows = response.parsed_output.rows.map((r) => {
-      const place = gazetteer.includes(r.place) ? r.place : (canonical.get(r.place.toLowerCase()) ?? "unknown");
+      const place = gazetteer.includes(r.place) ? r.place : (canonical.get(r.place.toLowerCase()) ?? byCore.get(coreName(r.place)) ?? "unknown");
       // the model's own coordinates count only inside Kenya
       const inKenya = r.lat > -4.8 && r.lat < 5.1 && r.lon > 33.8 && r.lon < 42;
       return {
