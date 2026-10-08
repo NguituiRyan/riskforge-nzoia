@@ -7,6 +7,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
 import { z } from "zod";
+import { rateLimit, readJson } from "./_guard";
 
 const MODEL = process.env.ANTHROPIC_MODEL || "claude-sonnet-5-5";
 
@@ -36,12 +37,11 @@ const SYSTEM = `You write short flood-risk briefings for a reinsurance underwrit
 - Be direct: what the loss is at key return periods, where it concentrates, what to do about it. No filler.`;
 
 export async function POST(request: Request): Promise<Response> {
-  let body: { summary?: unknown };
-  try {
-    body = await request.json();
-  } catch {
-    return Response.json({ error: "Body must be JSON" }, { status: 400 });
-  }
+  const limited = await rateLimit(request, "briefing", 30);
+  if (limited) return limited;
+  const parsed = await readJson<{ summary?: unknown }>(request, 40_000);
+  if ("error" in parsed) return parsed.error;
+  const body = parsed.body;
   if (!body.summary || typeof body.summary !== "object") return Response.json({ error: "Missing summary" }, { status: 400 });
   const summary = JSON.stringify(body.summary);
   if (summary.length > 20000) return Response.json({ error: "Summary too large" }, { status: 400 });
@@ -62,7 +62,7 @@ export async function POST(request: Request): Promise<Response> {
   } catch (error) {
     if (error instanceof Anthropic.RateLimitError) return Response.json({ error: "Rate limited - try again in a minute" }, { status: 429 });
     if (error instanceof Anthropic.AuthenticationError) return Response.json({ error: "The AI key on this deployment is invalid" }, { status: 503 });
-    if (error instanceof Anthropic.APIError) return Response.json({ error: `AI service error (${error.status})` }, { status: 502 });
+    if (error instanceof Anthropic.APIError) return Response.json({ error: `AI service error (${error.status}): ${String(error.message).slice(0, 300)}` }, { status: 502 });
     throw error;
   }
 }

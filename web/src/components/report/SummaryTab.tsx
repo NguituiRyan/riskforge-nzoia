@@ -1,5 +1,8 @@
 import EpChart from "../EpChart";
 import DecisionBox from "./DecisionBox";
+import FinancialTerms from "./FinancialTerms";
+import { useMemo } from "react";
+import { runProgramme } from "../../lib/terms";
 import { HazardBars, ShareBars, StackedLossBars } from "../charts";
 import { lossesOf } from "../Panels";
 import { Card, Kpi, td, th, tr } from "./ui";
@@ -13,7 +16,8 @@ import { CLASS_UI, CLASS_LABEL, floodedText, kes } from "../../lib/format";
 const pct = (x: number, d = 2) => `${(x * 100).toFixed(d)}%`;
 
 export default function SummaryTab(props: ReportProps) {
-  const { stats, portfolio, buildings, res, baseRes, aiRows, gazetteer, live, onPickBuilding } = props;
+  const { stats, portfolio, buildings, res, baseRes, aiRows, gazetteer, live, onPickBuilding, programme, setProgramme } = props;
+  const prog = useMemo(() => runProgramme(buildings, programme), [buildings, programme]);
   const prem = technicalPremium(res);
   const lossByRp = Object.fromEntries(RPS.map((r) => [r, res.scenarios[r].loss])) as Record<RP, number>;
   const acc = accumulation(buildings, gazetteer).slice(0, 8);
@@ -23,14 +27,14 @@ export default function SummaryTab(props: ReportProps) {
 
   return (
     <div className="space-y-4">
-      <DecisionBox {...props} />
+      <DecisionBox {...props} prog={prog} />
 
       <div className="grid grid-cols-2 gap-2 md:grid-cols-3 lg:grid-cols-6">
         <Kpi label="Total exposure" value={kes(res.tiv)} sub={`${res.count.toLocaleString("en-KE")} buildings`} />
         <Kpi label="Average annual loss" value={kes(res.aal)} sub={`${pct(res.aal / res.tiv)} of insured value`} tone="amber" />
         <Kpi label="1-in-100 loss" value={kes(res.scenarios[100].loss)} sub={`${floodedText(res.scenarios[100].wet, res.scenarios[100].wetW)} buildings flooded`} />
         <Kpi label="1-in-250 loss" value={kes(res.scenarios[250].loss)} sub="interpolated 200↔500" />
-        <Kpi label="Technical premium, gross" value={kes(prem.gross)} sub={`illustrative · ${pct(prem.rateOnTiv, 3)} rate`} />
+        <Kpi label="Technical premium, ground-up" value={kes(prem.gross)} sub={`illustrative · ${pct(prem.rateOnTiv, 3)} rate`} />
         {live ? (
           <Kpi label="Live event loss" value={kes(live.scenario?.loss ?? 0)} sub={live.rp ? `river at 1-in-${Math.round(live.rp)}` : "river in bank"} tone="cyan" />
         ) : (
@@ -47,13 +51,16 @@ export default function SummaryTab(props: ReportProps) {
       )}
 
       {portfolio === "book" ? (
-        <p className="rounded-xl bg-white/[0.03] px-4 py-2.5 text-[12px] leading-snug text-slate-400">
-          <b className="text-slate-200">Totals are weighted.</b> The flood plain is over-sampled so there is enough of it to study ({stats.bookStrata.floodplain} of {stats.portfolios.book.count.toLocaleString("en-KE")} sample buildings, each counting ×
-          {stats.bookWeights.floodplain.toFixed(2)}; the rest ×{stats.bookWeights.basin.toFixed(2)}), then weighted back so the book matches where people live. Unweighted, the same sample would show {kes(stats.portfolios.bookUnweighted.perRp["100"].loss)} at 1-in-100.
+        <p className="text-[11px] text-slate-500">
+          Weighted totals: flood-plain sample buildings count ×{stats.bookWeights.floodplain.toFixed(2)}, the rest ×{stats.bookWeights.basin.toFixed(2)} · unweighted sample {kes(stats.portfolios.bookUnweighted.perRp["100"].loss)} at 1-in-100
         </p>
       ) : (
         <StarterCleaning stats={stats} />
       )}
+
+      <Card title="Financial engine · ground-up to net" hint="deductible → limit → gross → quota share → cat XL → net">
+        <FinancialTerms programme={programme} setProgramme={setProgramme} result={prog} />
+      </Card>
 
       <Pipeline stats={stats} res={res} />
 

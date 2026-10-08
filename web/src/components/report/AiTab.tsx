@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { Badge, Card, Kpi, td, th, tr } from "./ui";
+import OfferPanel from "./OfferPanel";
 import type { ReportProps } from "./Report";
 import type { BuildingProps, HousingClass } from "../../lib/types";
 import { RPS } from "../../lib/types";
@@ -69,7 +70,8 @@ export default function AiTab(p: ReportProps) {
   const [busy, setBusy] = useState<"ingest" | "brief" | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [parsed, setParsed] = useState<IngestResult | null>(null);
-  const [batch, setBatch] = useState(1);
+  // one numbering for every AI addition (text intake and offer documents), so the newest batch is always the highest
+  const batch = 1 + Math.max(0, ...aiRows.map((b) => Number(b.batch) || 0));
   const [brief, setBrief] = useState<{ b: Briefing; summary: unknown; model: string } | null>(null);
 
   // turn Claude's rows into buildings: geocode on the gazetteer, fill documented typical values, attach hazard
@@ -180,11 +182,13 @@ export default function AiTab(p: ReportProps) {
   return (
     <div className="space-y-4">
       <div className="rounded-xl border border-cyan-300/25 bg-cyan-300/[0.05] px-4 py-2.5 text-[12px] leading-snug text-cyan-50/90">
-        Claude Sonnet 5.5 reads, proposes and explains; the Risk Forge engine computes every number; the underwriter approves every change. Only the text you paste and public place names go to Claude (outside Kenya) - paste synthetic or anonymised schedules only.
+        Claude reads; the Risk Forge engine computes every number; the underwriter decides. Personal details are removed before Claude sees a document.
       </div>
       {err && <div className="rounded-lg bg-rose-500/15 px-3 py-2 text-[13px] text-rose-200">{err}</div>}
 
-      <Card title="1 · Exposure intake from free text" hint={<span>changes the model's output · <Badge kind="ai" /></span>}>
+      <OfferPanel {...p} />
+
+      <Card title="Quick intake from free text" hint={<span>a broker email or schedule · <Badge kind="ai" /></span>}>
         <div className="grid gap-3 lg:grid-cols-5">
           <div className="lg:col-span-2">
             <textarea
@@ -336,7 +340,6 @@ export default function AiTab(p: ReportProps) {
                       addAiRows(newBuildings);
                       setParsed(null);
                       setText("");
-                      setBatch((b) => b + 1);
                     }}
                     className="rounded-lg bg-brand px-4 py-2 text-[13px] font-semibold text-on-brand disabled:opacity-50"
                   >
@@ -370,7 +373,7 @@ export default function AiTab(p: ReportProps) {
         )}
       </Card>
 
-      <Card title="2 · Underwriting briefing" hint={<span>every figure checked against the engine · <Badge kind="ai" /></span>}>
+      <Card title="Underwriting briefing" hint={<span>every figure checked against the engine · <Badge kind="ai" /></span>}>
         <div className="flex flex-wrap items-center gap-3">
           <button onClick={writeBriefing} disabled={busy !== null} className="rounded-lg bg-brand px-4 py-2 text-[13px] font-semibold text-on-brand disabled:opacity-50">
             {busy === "brief" ? "Claude is writing…" : brief ? "Rewrite briefing" : "Write briefing for this book"}

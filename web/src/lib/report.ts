@@ -8,7 +8,8 @@ import { CLASS_LABEL } from "./format";
 const FOOTPRINT_HALF_M = 300;
 
 export function squareFeature(b: BuildingProps): Feature<Polygon, BuildingProps> {
-  const dlat = FOOTPRINT_HALF_M / 111_320;
+  // document-ingested buildings carry their own (smaller) half-size so a site's buildings sit side by side
+  const dlat = (Number(b.half) || FOOTPRINT_HALF_M) / 111_320;
   const dlon = dlat / Math.cos((b.lat * Math.PI) / 180);
   const { lon, lat } = b;
   return {

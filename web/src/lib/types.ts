@@ -47,6 +47,8 @@ export interface Stats {
   maxDepthLand: Record<string, number>;
   lakeWetShare: number;
   permanentWater: { ruleD10M: number; cells: number; km2: number };
+  /** median depth(RP) / depth(1-in-10) on flood-plain land, from the JRC maps */
+  depthGrowth: Record<string, number>;
   starterFlags: Record<Where, number>;
   starterTivCsvTotal: number;
   bookStrata: Record<string, number>;

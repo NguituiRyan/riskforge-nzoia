@@ -6,6 +6,7 @@ import type { BuildingProps, Place, PortfolioView, Stats } from "../../lib/types
 import type { FloodGrid, PortfolioResult, ScenarioResult } from "../../lib/engine";
 import type { NodeData, TriggerTerms } from "../../lib/node";
 import type { ReportTab } from "../Panels";
+import type { Programme } from "../../lib/terms";
 import SummaryTab from "./SummaryTab";
 import BuildingsTab from "./BuildingsTab";
 import VulnerabilityTab from "./VulnerabilityTab";
@@ -32,6 +33,9 @@ export interface ReportProps {
   setTrigger: (t: TriggerTerms) => void;
   live: { stage: number; rp: number | null; scenario: ScenarioResult | null } | null;
   onPickBuilding: (b: BuildingProps) => void;
+  /** financial terms for the book: deductible, limit, quota share, cat XL */
+  programme: Programme;
+  setProgramme: (p: Programme) => void;
 }
 
 const TABS: [ReportTab, string][] = [

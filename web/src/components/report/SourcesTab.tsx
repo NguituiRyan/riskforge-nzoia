@@ -34,7 +34,8 @@ const PRODUCTION: [string, string, string][] = [
     ["Hosting and data residency", "the prototype runs on Vercel in Mumbai; synthetic data only", "the same web app on Kenya Re servers or a Nairobi data centre, so client schedules never leave Kenya"],
     ["AI", "Claude (US) reads pasted text; only synthetic text and aggregated figures are sent", "send anonymised text only, or swap in an open model hosted in Kenya - the AI sits behind one interface"],
     ["Running cost", "near zero: a static site plus small functions; AI is pay-per-use (about 2,500 tokens per broker email in tests)", "the same, plus a hazard licence (JBA or Fathom) when 30 m maps are needed"],
-    ["Security", "river-node readings are HMAC-signed, forged and replayed readings are rejected and counted", "pin the server certificate on nodes, per-node keys, and single sign-on for underwriters"],
+    ["Documents and personal data", "offer PDFs and Word files are read in the browser; names, phone numbers and emails are removed before the AI sees the text; nothing is stored", "the same, inside Kenya Re's network, with an audit log of who analysed which offer"],
+    ["Security", "river-node readings are HMAC-signed, forged and replayed readings are rejected and counted; the AI endpoints are rate-limited per address and size-capped; security headers on every page", "pin the server certificate on nodes, per-node keys, and single sign-on for underwriters"],
     ["River data", "a demo node in a tank, plus the replayed 2020 GloFAS flood", "the Water Resources Authority's Rwambwa gauge feed for parametric cover; own nodes only where there is no gauge"],
     ["Ownership and governance", "open code; every number traceable; two engines (Python and browser) agree within 0.06%", "Kenya Re's cat-modelling team owns it; versioned data scripts, a model change log and yearly validation against claims"],
 ];
@@ -62,6 +63,11 @@ export default function SourcesTab({ stats, baseBuildings, res, aiRows, portfoli
     ["Risk Forge book placement", `WorldPop population × insurance uptake (urban 4, peri-urban 1.5, rural 1), never on permanent water. 15% of rows from the flood plain, 85% from the rest; totals weighted back to population (×${stats.bookWeights.floodplain.toFixed(2)} and ×${stats.bookWeights.basin.toFixed(2)}).`],
     ["River node stage table", "Stage → return period anchored on the 2.8 m alert level; replace with WRA's rating curve."],
     ["Building squares in 3D are symbolic", "600 m squares so they read at basin scale; heights scale with value. Not footprints."],
+    ["Hazard resolution", "The brief describes ~90 m cells; the supplied rasters are 30 arc-seconds (~928 m), so a building's depth is the average of a ~1 km cell. We report what the files contain."],
+    ["Financial terms (book)", "Illustrative programme: KES 25,000 deductible per building, limit = value, 25% quota share, cat XL 4M xs 4M on the cedant's retained event loss. Every input is editable on the Summary tab."],
+    ["Offer documents: contents", "Stock spoils in shallow water (JRC Africa shape at 2× depth, capped at 95%); machinery at 1.2×, capped at 70%. Raised floors keep the first part of the water out."],
+    ["Offer documents: site flood history", "Where the JRC map is dry at a site but the document reports floods, depth-frequency comes from those floods (Weibull plotting positions, log-linear fit read at 1-in-10), shaped to rarer floods by the basin's median JRC growth curve. It is the broker's evidence, not an independent survey."],
+    ["Offer documents: calibration", "The site's damage curves are scaled by one factor fitted (least squares) to its own reported claims at their reported depths; the fit (R²) is shown."],
   ];
 
   const prem = technicalPremium(res);
@@ -83,7 +89,8 @@ ${assumptions.map(([a, why]) => `- ${a}: ${why}`).join("\n")}
 
 ## AI feature
 1. Exposure intake: an underwriter pastes a broker's free-text schedule; Claude returns rows shaped like exposure_nzoia_synthetic.csv (class, count, floor area, value, place from our gazetteer, confidence, assumptions). The engine geocodes them, attaches the JRC depths, applies the damage curves and shows the change in AAL and 1-in-100 loss; the underwriter approves before the rows enter the book. Instructions hidden in the pasted text are treated as data (prompt-injection test included in the demo).
-2. Briefing: Claude writes a short underwriting briefing from the engine's aggregated output and must cite every figure with its source path; the interface verifies each number against the engine.
+2. Offer documents: an underwriter drops a broker's offer (PDF or Word). The browser reads it and removes personal details; Claude extracts the site, buildings, contents, flood history and terms, quoting the document for every number (each quote is checked against the text). The engine then runs hazard, vulnerability (calibrated to the site's claims), exposure and the financial terms, and recommends approve, approve with conditions, or decline, with a counter-offer.
+3. Briefing: Claude writes a short underwriting briefing from the engine's aggregated output and must cite every figure with its source path; the interface verifies each number against the engine.
 Only synthetic text and aggregated numbers are sent to Claude; the model sits behind a provider interface so an in-country model can replace it.
 
 ## Results (${portfolioName}${aiRows.length ? `, incl. ${aiRows.length} AI-added buildings` : ""})

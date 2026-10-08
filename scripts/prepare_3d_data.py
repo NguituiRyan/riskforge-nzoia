@@ -250,6 +250,7 @@ def main():
     lake_mask = inside(lake, centres).reshape(nrows, ncols)
     water = (rasters[RPS[0]] >= WATER_D10_M) & ~lake_mask  # river channel and lake edge
     land = ~lake_mask & ~water
+    wet10 = land & (rasters[RPS[0]] >= 0.1)
     wet_any = np.zeros((nrows, ncols), bool)
     for rp in RPS:
         wet_any |= rasters[rp] > 0
@@ -302,6 +303,9 @@ def main():
         "maxDepthLand": {str(rp): round(float(rasters[rp][land].max()), 2) for rp in RPS},
         "lakeWetShare": round(float((wet_any & lake_mask).sum() / wet_any.sum()), 3),
         "permanentWater": {"ruleD10M": WATER_D10_M, "cells": int(water.sum()), "km2": round(float(water.sum()) * cell_km2, 1)},
+        # how flood depth grows with rarity on flood-plain land: median depth(RP) / depth(1-in-10) over land cells
+        # wet at 1-in-10. Shapes a site's own flood curve when the JRC map is dry there (web/src/lib/offer.ts)
+        "depthGrowth": {str(rp): round(float(np.median(rasters[rp][wet10] / rasters[RPS[0]][wet10])), 3) for rp in RPS},
         "starterFlags": {k: int((starter.location_flag == k).sum()) for k in ("KE", "UG", "LAKE", "WATER")},
         "starterTivCsvTotal": float(starter.tiv_kes.sum()),
         "bookStrata": {k: int(v) for k, v in book.stratum.value_counts().items()},

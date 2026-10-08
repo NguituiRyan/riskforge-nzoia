@@ -11,6 +11,7 @@ import { RPS } from "./lib/types";
 import { buildFloodGrid, runPortfolio, scenario, type FloodGrid } from "./lib/engine";
 import { alertFor, rpForStage, type NodeData, type NodeReading, type TriggerTerms } from "./lib/node";
 import { squareFeature } from "./lib/report";
+import { BOOK_PROGRAMME, type Programme } from "./lib/terms";
 import { applyTheme, initialTheme, type Theme } from "./lib/theme";
 
 async function getJson<T>(url: string): Promise<T> {
@@ -48,6 +49,7 @@ export default function App() {
   const [aiRows, setAiRows] = useState<BuildingProps[]>([]);
   const [trigger, setTrigger] = useState<TriggerTerms>({ triggerStage: 4.8, payout: 7_000_000, load: 0.4, firstStage: 4.2, firstPct: 0.3 });
   const [report, setReport] = useState<{ open: boolean; tab: ReportTab }>({ open: false, tab: "summary" });
+  const [programme, setProgramme] = useState<Programme>(BOOK_PROGRAMME);
   const [theme, setTheme] = useState<Theme>(initialTheme);
   const toggleTheme = useCallback(() => setTheme((t) => (t === "dark" ? "light" : "dark")), []);
   useEffect(() => applyTheme(theme), [theme]);
@@ -208,7 +210,7 @@ export default function App() {
 
           {/* building details */}
           {selected && (
-            <div className="rise-in absolute inset-x-3 bottom-[226px] z-10 max-h-[46dvh] overflow-y-auto sm:left-auto sm:right-3 sm:w-[400px] lg:inset-x-auto lg:bottom-4 lg:left-[388px] lg:right-auto lg:max-h-[60dvh]">
+            <div className="rise-in absolute inset-x-3 bottom-[226px] z-10 max-h-[46dvh] overflow-y-auto sm:left-auto sm:right-3 sm:w-[440px] lg:inset-x-auto lg:bottom-4 lg:left-[388px] lg:right-auto lg:max-h-[60dvh]">
               <BuildingCard b={selected} rp={rp} liveRp={live ? live.rp ?? 1 : null} onClose={() => setSelected(null)} />
             </div>
           )}
@@ -262,6 +264,8 @@ export default function App() {
               removeAiRow={(id) => setAiRows((cur) => cur.filter((b) => b.id !== id))}
               trigger={trigger}
               setTrigger={setTrigger}
+              programme={programme}
+              setProgramme={setProgramme}
               live={live}
               onPickBuilding={(b) => {
                 setReport((r) => ({ ...r, open: false }));

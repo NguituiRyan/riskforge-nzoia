@@ -158,7 +158,9 @@ function buildingColour(mode: ColourMode, rp: number, showIssues: boolean): Expr
 }
 
 /** height ~ log(value): KES 45k -> ~300 m, KES 72M -> ~3 km (display only) */
-const BUILDING_HEIGHT: ExpressionSpecification = ["*", ["max", ["-", ["log10", ["max", num("tiv"), 1]], 4.3], 0.25], 850];
+const BASE_HEIGHT: ExpressionSpecification = ["*", ["max", ["-", ["log10", ["max", num("tiv"), 1]], 4.3], 0.25], 850];
+/** document sites have real-ish footprints (b.half), so their pillars are kept lower than the 600 m symbolic squares */
+const BUILDING_HEIGHT: ExpressionSpecification = ["case", ["has", "half"], ["*", BASE_HEIGHT, 0.3], BASE_HEIGHT];
 
 function toPoints(fc: FeatureCollection<Polygon, BuildingProps>): FeatureCollection<Point, BuildingProps> {
   return {
@@ -339,8 +341,8 @@ export default function MapScene(props: Props) {
           const b = f.properties;
           const base = map.project([b.lon, b.lat]);
           const mpp = (78271.517 * Math.cos((b.lat * Math.PI) / 180)) / scale;
-          const heightPx = (Math.max(Math.log10(Math.max(b.tiv, 1)) - 4.3, 0.25) * 850 * sinPitch) / mpp;
-          const halfWidthPx = Math.max(4, FOOTPRINT_HALF_M / mpp);
+          const heightPx = (Math.max(Math.log10(Math.max(b.tiv, 1)) - 4.3, 0.25) * 850 * (b.half ? 0.3 : 1) * sinPitch) / mpp;
+          const halfWidthPx = Math.max(4, (Number(b.half) || FOOTPRINT_HALF_M) / mpp);
           if (Math.abs(pt.x - base.x) <= halfWidthPx + 3 && pt.y <= base.y + 4 && pt.y >= base.y - heightPx - 4 && (!best || base.y > best.y)) {
             best = { b, y: base.y };
           }
@@ -571,7 +573,8 @@ export default function MapScene(props: Props) {
     map.setFilter("building-selected", ["==", ["get", "id"], selectedId ?? ""]);
     if (!selectedId) return;
     const f = buildingsRef.current.features.find((x) => x.properties.id === selectedId);
-    if (f) map.easeTo({ center: [f.properties.lon, f.properties.lat], zoom: Math.max(map.getZoom(), 10.4), pitch: 62, duration: 1300 });
+    // a document site's buildings are a few hundred metres across: come in closer
+    if (f) map.easeTo({ center: [f.properties.lon, f.properties.lat], zoom: Math.max(map.getZoom(), f.properties.half ? 14.2 : 10.4), pitch: 62, duration: 1300 });
   }, [selectedId, ready]);
 
   // ---- camera presets ----

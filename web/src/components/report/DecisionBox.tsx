@@ -1,13 +1,11 @@
-import { useMemo, useState } from "react";
 import type { ReportProps } from "./Report";
 import type { RP } from "../../lib/types";
 import { RPS } from "../../lib/types";
-import { aal, netOfTerms, ONSET_RP, type PolicyTerms } from "../../lib/engine";
+import { aal, ONSET_RP } from "../../lib/engine";
+import type { ProgrammeResult } from "../../lib/terms";
 import { accumulation, topRisks } from "../../lib/report";
 import { kes } from "../../lib/format";
 
-const COST_OF_CAPITAL = 0.1;
-const EXPENSE_LOAD = 0.15;
 const REFER_RATE = 0.005; // ASSUMPTION: a flood AAL above 0.5% of value goes to a senior underwriter
 
 /** round up to 2 significant figures, for a limit an underwriter would write */
@@ -19,18 +17,13 @@ const roundUp = (x: number) => {
 const pct = (x: number, d = 1) => `${(x * 100).toFixed(d)}%`;
 
 /**
- * The answer first: a rule-based recommendation with limits, rate, top risks and the biggest caveat, and the policy
- * terms (excess, Kenya Re share) that turn the gross model into what Kenya Re would pay. Illustrative rules, stated.
+ * The answer first: a rule-based recommendation with the reinsurer's price and event limit, where the loss
+ * concentrates, the top risks and the biggest caveat. Every figure follows the financial terms below it.
  */
-export default function DecisionBox({ buildings, res, gazetteer, onPickBuilding }: ReportProps) {
-  const [terms, setTerms] = useState<PolicyTerms>({ excessPct: 0.1, excessMin: 25_000, share: 1 });
-  const net = useMemo(() => netOfTerms(buildings, terms), [buildings, terms]);
-
-  const risk = net.aal + COST_OF_CAPITAL * Math.max(net.lossByRp[200] - net.aal, 0);
-  const premium = risk / (1 - EXPENSE_LOAD);
-  const shareValue = res.tiv * terms.share;
-  const rate = premium / Math.max(shareValue, 1);
-  const eventLimit = roundUp(net.lossByRp[250]);
+export default function DecisionBox({ buildings, res, gazetteer, onPickBuilding, prog }: ReportProps & { prog: ProgrammeResult }) {
+  const premium = prog.reinsurerPremium;
+  const rate = premium / Math.max(res.tiv, 1);
+  const eventLimit = roundUp(prog.byRp[250].reinsurer);
 
   const places = accumulation(buildings, gazetteer).sort((a, b) => b.loss100 - a.loss100);
   const top3 = places.slice(0, 3);
@@ -48,7 +41,7 @@ export default function DecisionBox({ buildings, res, gazetteer, onPickBuilding 
     <section className="rounded-2xl border border-brand-400/30 bg-brand-400/[0.06] p-4">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <h3 className="font-display text-[17px] text-slate-50">Underwriting decision</h3>
-        <span className="text-[11px] text-slate-500">rule-based, illustrative · terms below change every figure</span>
+        <span className="text-[11px] text-slate-500">rule-based · follows the financial terms below</span>
       </div>
       <p className="mt-1.5 text-[14px] leading-snug text-slate-100">
         {refer ? (
@@ -70,8 +63,8 @@ export default function DecisionBox({ buildings, res, gazetteer, onPickBuilding 
       </p>
 
       <div className="mt-3 grid grid-cols-2 gap-2 lg:grid-cols-4">
-        <Fact label="Technical premium, net" value={kes(premium)} sub={`${pct(rate, 3)} of ${terms.share < 1 ? "Kenya Re's share of " : ""}value`} />
-        <Fact label="Event limit" value={kes(eventLimit)} sub="1-in-250 loss after terms, rounded up" />
+        <Fact label="Reinsurer premium" value={kes(premium)} sub={`technical · ${pct(rate, 3)} of value`} />
+        <Fact label="Reinsurer event limit" value={kes(eventLimit)} sub="its 1-in-250 loss, rounded up" />
         <Fact label="Accumulation cap" value={kes(valueInTop3)} sub={top3.length ? `value inside the 1-in-100 flood at ${names}: hold it here` : "no flooded value"} />
         <Fact label="Biggest caveat" value={`AAL −${pct(dykeDrop, 0)}`} sub={`if the Budalangi dykes hold to 1-in-10 (model assumes losses from 1-in-${ONSET_RP})`} />
       </div>
@@ -95,14 +88,19 @@ export default function DecisionBox({ buildings, res, gazetteer, onPickBuilding 
           </ul>
         </div>
         <div>
-          <div className="text-[10px] uppercase tracking-wider text-slate-500">Terms · per building and event</div>
-          <div className="mt-1 grid grid-cols-3 gap-2 text-[12px]">
-            <Num label="Excess, % of loss" value={terms.excessPct * 100} step={5} onChange={(v) => setTerms({ ...terms, excessPct: Math.min(Math.max(v, 0), 100) / 100 })} />
-            <Num label="Minimum excess, KES" value={terms.excessMin} step={5000} onChange={(v) => setTerms({ ...terms, excessMin: Math.max(v, 0) })} />
-            <Num label="Kenya Re share, %" value={terms.share * 100} step={5} onChange={(v) => setTerms({ ...terms, share: Math.min(Math.max(v, 0), 100) / 100 })} />
-          </div>
-          <div className="mt-2 text-[12px] text-slate-400">
-            Gross → net: AAL {kes(res.aal)} → <b className="text-slate-200">{kes(net.aal)}</b> · 1-in-100 {kes(loss100)} → <b className="text-slate-200">{kes(net.lossByRp[100])}</b>
+          <div className="text-[10px] uppercase tracking-wider text-slate-500">Average annual loss, who pays</div>
+          <div className="mt-1 grid grid-cols-2 gap-1.5 text-[12px]">
+            {[
+              ["Ground-up", prog.aal.gu],
+              ["Gross", prog.aal.gross],
+              ["Reinsurer", prog.aal.reinsurer],
+              ["Cedant net", prog.aal.net],
+            ].map(([k, v]) => (
+              <div key={k as string} className="flex justify-between rounded-lg bg-white/[0.04] px-2.5 py-1.5 text-slate-300">
+                <span>{k}</span>
+                <span className="tabular-nums text-slate-100">{kes(v as number)}</span>
+              </div>
+            ))}
           </div>
         </div>
       </div>
@@ -117,14 +115,5 @@ function Fact({ label, value, sub }: { label: string; value: string; sub: string
       <div className="mt-0.5 font-display text-[18px] text-slate-50">{value}</div>
       <div className="text-[11px] leading-snug text-slate-500">{sub}</div>
     </div>
-  );
-}
-
-function Num({ label, value, step, onChange }: { label: string; value: number; step: number; onChange: (v: number) => void }) {
-  return (
-    <label className="flex flex-col gap-1 text-slate-400">
-      <span className="text-[11px]">{label}</span>
-      <input type="number" value={Math.round(value * 100) / 100} step={step} min={0} onChange={(e) => onChange(Number(e.target.value) || 0)} className="w-full rounded bg-white/[0.06] px-2 py-1 text-right text-slate-100" />
-    </label>
   );
 }

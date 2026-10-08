@@ -44,6 +44,29 @@ export function damageRatio(cls: HousingClass, depth: number): number {
   return depth > 0 ? c.cap * interp(depth * c.k, HUIZINGA_AFRICA) : 0;
 }
 
+/** contents: ASSUMPTION - stock (grain, bagged goods) spoils in shallow water, machinery less so; the same JRC Africa
+ *  shape at a steeper k. Where a site has its own claims, the whole site is calibrated against them (b.cal). */
+export const CONTENTS_CURVES = {
+  stock: { k: 2.0, cap: 0.95 },
+  machinery: { k: 1.2, cap: 0.7 },
+  other: { k: 1.0, cap: 0.8 },
+} as const;
+export type ContentsKind = keyof typeof CONTENTS_CURVES;
+
+export function contentsDamage(kind: ContentsKind, depth: number): number {
+  const c = CONTENTS_CURVES[kind];
+  return depth > 0 ? c.cap * interp(depth * c.k, HUIZINGA_AFRICA) : 0;
+}
+
+const num = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : 0);
+/** stock, machinery and other contents carried by a building (document-ingested risks); 0 for the synthetic books */
+export const contentsOf = (b: BuildingProps) => ({ stock: num(b.cs), machinery: num(b.cm), other: num(b.co) });
+/** everything insured at this building: the structure plus its contents */
+export const valueOf = (b: BuildingProps) => {
+  const c = contentsOf(b);
+  return b.tiv + c.stock + c.machinery + c.other;
+};
+
 export const severity = (depth: number) => Math.min(Math.max(depth, 0) / SEVERITY_REF_M, 1);
 
 /** a building's weight in portfolio totals (see the header); rows without one count once */
@@ -68,15 +91,25 @@ export function depthAtRp(d: Record<RP, number>, rp: number): number {
 
 export interface BuildingResult {
   b: BuildingProps;
+  /** water depth at the site */
   depth: number;
+  /** depth above the ground floor (a raised floor keeps the first part of the water out) */
+  eff: number;
+  /** structure damage ratio */
   dr: number;
+  /** contents damage ratio (stock), when the building holds contents */
+  cdr: number;
   loss: number;
 }
 
 export function buildingAt(b: BuildingProps, rp: number): BuildingResult {
   const depth = depthAtRp(depthsOf(b), rp);
-  const dr = damageRatio(b.cls, depth);
-  return { b, depth, dr, loss: dr * b.tiv };
+  const eff = Math.max(depth - num(b.floor), 0);
+  const dr = damageRatio(b.cls, eff);
+  const c = contentsOf(b);
+  const contentsLoss = contentsDamage("stock", eff) * c.stock + contentsDamage("machinery", eff) * c.machinery + contentsDamage("other", eff) * c.other;
+  const cal = typeof b.cal === "number" && b.cal > 0 ? b.cal : 1; // site calibration against its own claims
+  return { b, depth, eff, dr, cdr: contentsDamage("stock", eff), loss: (dr * b.tiv + contentsLoss) * cal };
 }
 
 export interface ScenarioResult {
@@ -105,7 +138,7 @@ export function scenario(buildings: BuildingProps[], rp: number): ScenarioResult
     if (r.depth > 0) {
       wet++;
       wetW += w;
-      tivWet += b.tiv * w;
+      tivWet += valueOf(b) * w;
       byClass[b.cls].wet++;
     }
   }
@@ -147,42 +180,15 @@ export function runPortfolio(buildings: BuildingProps[]): PortfolioResult {
     if (w <= 0) continue;
     count++;
     byClass[b.cls].count++;
-    byClass[b.cls].tiv += b.tiv * w;
+    byClass[b.cls].tiv += valueOf(b) * w;
     byClass[b.cls].aal += a * w;
-    tiv += b.tiv * w;
+    tiv += valueOf(b) * w;
   }
   return { count, tiv, byClass, scenarios, aal: aal(lossByRp), perBuildingAal };
 }
 
 /** a building's AAL as it counts in the book: its own AAL times its weight */
 export const aalInBook = (res: PortfolioResult, b: BuildingProps) => (res.perBuildingAal.get(b.id) ?? 0) * weightOf(b);
-
-/** policy terms: an excess per building and event (pct of the loss, at least a minimum, never more than the loss),
- *  then Kenya Re's share of what is left */
-export interface PolicyTerms {
-  excessPct: number;
-  excessMin: number;
-  share: number;
-}
-
-export function netLoss(loss: number, t: PolicyTerms): number {
-  if (loss <= 0) return 0;
-  return (loss - Math.min(loss, Math.max(t.excessPct * loss, t.excessMin))) * t.share;
-}
-
-/** losses after the terms, per key return period, and the net AAL (weighted like every portfolio total) */
-export function netOfTerms(buildings: BuildingProps[], t: PolicyTerms) {
-  const lossByRp: Record<number, number> = {};
-  for (const rp of KEY_RPS) {
-    let total = 0;
-    for (const b of buildings) {
-      const w = weightOf(b);
-      if (w > 0) total += netLoss(buildingAt(b, rp).loss, t) * w;
-    }
-    lossByRp[rp] = total;
-  }
-  return { lossByRp, aal: aal(Object.fromEntries(RPS.map((r) => [r, lossByRp[r]])) as Record<RP, number>) };
-}
 
 /** illustrative technical premium: AAL + cost of capital x (1-in-200 loss - AAL), plus an expense load */
 export function technicalPremium(p: PortfolioResult, costOfCapital = 0.1, expenseLoad = 0.15) {
