@@ -391,11 +391,15 @@ def oasis_version():
         return "?"
 
 
-def run_portfolio(portfolio, work=None):
+def run_portfolio(portfolio, work=None, keep=True):
     work = Path(work or RUNS / str(int(time.time() * 1000)))
-    info = build(portfolio, work)
-    seconds = run(work)
-    return collect(work, info, seconds)
+    try:
+        info = build(portfolio, work)
+        seconds = run(work)
+        return collect(work, info, seconds)
+    finally:
+        if not keep:  # a container's disk is memory: drop the run folder once the results are read
+            shutil.rmtree(work, ignore_errors=True)
 
 
 def book_portfolio():

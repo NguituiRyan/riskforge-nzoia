@@ -30,6 +30,7 @@ export interface OasisResult {
 
 /** where the runner listens: VITE_OASIS_URL, else this machine (WSL forwards localhost) */
 export const OASIS_URL: string = (import.meta.env.VITE_OASIS_URL as string | undefined) || "http://localhost:8765";
+const OASIS_LOCAL = /\/\/(localhost|127\.0\.0\.1)[:/]/.test(OASIS_URL);
 
 const FIELDS = ["id", "cls", "tiv", "lat", "lon", "floor", "cs", "cm", "co", "cal", "w", "policy", "ded", "lim", ...RPS.map((r) => `d${r}`)];
 
@@ -50,7 +51,11 @@ export async function runOasis(name: string, buildings: BuildingProps[], program
       signal,
     });
   } catch {
-    throw new Error(`No Oasis runner at ${OASIS_URL}. Start it on the Linux worker: python oasis/server.py`);
+    throw new Error(
+      OASIS_LOCAL
+        ? `No Oasis runner at ${OASIS_URL}. Start it on the Linux worker: python oasis/server.py`
+        : `Could not reach the Oasis runner (${OASIS_URL}). Check the connection and try again.`,
+    );
   }
   const data = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
   if (!res.ok) throw new Error((data as { error?: string }).error ?? `HTTP ${res.status}`);

@@ -7,11 +7,15 @@ The web app (local or https://riskforge-nzoia.vercel.app) calls it from the brow
 Private Network Access preflights for those origins only. One run at a time; portfolios up to 5,000 buildings.
 
 Run (Linux / WSL):  python server.py [port]        default 8765, listening on 127.0.0.1
+In a container (Cloud Run): HOST=0.0.0.0, PORT from the platform, RF_REQUIRE_ORIGIN=1 (runs only from the site).
 """
 import json
+import os
 import sys
 import threading
+import time
 import traceback
+from collections import defaultdict, deque
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 from riskforge_oasis import oasis_version, run_portfolio
@@ -19,6 +23,20 @@ from riskforge_oasis import oasis_version, run_portfolio
 ALLOWED_ORIGINS = {"http://localhost:5173", "http://127.0.0.1:5173", "https://riskforge-nzoia.vercel.app"}
 MAX_BYTES = 20 * 1024 * 1024
 MAX_BUILDINGS = 5000
+RUNS_PER_HOUR = int(os.environ.get("RF_RUNS_PER_HOUR", "30"))  # per client address, per instance
+REQUIRE_ORIGIN = os.environ.get("RF_REQUIRE_ORIGIN") == "1"
+recent = defaultdict(deque)
+
+
+def limited(ip):
+    now = time.time()
+    q = recent[ip]
+    while q and now - q[0] > 3600:
+        q.popleft()
+    if len(q) >= RUNS_PER_HOUR:
+        return True
+    q.append(now)
+    return False
 BUILDING_KEYS = {"id", "cls", "tiv", "lat", "lon", "d10", "d20", "d50", "d100", "d200", "d500", "floor", "cs", "cm", "co", "cal", "w", "policy", "ded", "lim"}
 CLASSES = {"informal_iron_sheet", "semi_permanent", "permanent_masonry", "concrete_rcc"}
 lock = threading.Lock()
@@ -81,6 +99,11 @@ class Handler(BaseHTTPRequestHandler):
     def do_POST(self):
         if not self.path.startswith("/run"):
             return self.reply(404, {"error": "not found"})
+        if REQUIRE_ORIGIN and self.headers.get("Origin", "") not in ALLOWED_ORIGINS:
+            return self.reply(403, {"error": "runs are accepted from the Risk Forge site only"})
+        ip = (self.headers.get("X-Forwarded-For") or self.client_address[0]).split(",")[0].strip()
+        if limited(ip):
+            return self.reply(429, {"error": f"limit of {RUNS_PER_HOUR} Oasis runs an hour reached; try later"})
         n = int(self.headers.get("content-length") or 0)
         if not 0 < n <= MAX_BYTES:
             return self.reply(413, {"error": "portfolio too large"})
@@ -91,7 +114,7 @@ class Handler(BaseHTTPRequestHandler):
         if not lock.acquire(blocking=False):
             return self.reply(429, {"error": "Oasis is busy with another run; try again in a moment"})
         try:
-            result = run_portfolio(portfolio)
+            result = run_portfolio(portfolio, keep=False)
             result["portfolio"] = portfolio["name"]
             result["programme"] = portfolio["programme"]
             self.reply(200, result)
@@ -103,6 +126,7 @@ class Handler(BaseHTTPRequestHandler):
 
 
 if __name__ == "__main__":
-    port = int(sys.argv[1]) if len(sys.argv) > 1 else 8765
-    print(f"Risk Forge Oasis runner on http://127.0.0.1:{port} (oasislmf {oasis_version()})")
-    ThreadingHTTPServer(("127.0.0.1", port), Handler).serve_forever()
+    port = int(sys.argv[1]) if len(sys.argv) > 1 else int(os.environ.get("PORT", "8765"))
+    host = os.environ.get("HOST", "127.0.0.1")
+    print(f"Risk Forge Oasis runner on http://{host}:{port} (oasislmf {oasis_version()})", flush=True)
+    ThreadingHTTPServer((host, port), Handler).serve_forever()

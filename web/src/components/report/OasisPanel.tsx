@@ -78,9 +78,11 @@ export default function OasisPanel({
       {err && (
         <div className="mt-2 rounded-lg bg-rose-500/15 px-3 py-2 text-[12px] text-rose-100">
           {err}
-          <div className="mt-1 text-rose-200/80">
-            The runner is <code>oasis/server.py</code> on a Linux machine with oasislmf (WSL on this laptop). The page looks for it at <code>{OASIS_URL}</code>.
-          </div>
+          {/localhost|127\.0\.0\.1/.test(OASIS_URL) && (
+            <div className="mt-1 text-rose-200/80">
+              The runner is <code>oasis/server.py</code> on a Linux machine with oasislmf (WSL on this laptop). The page looks for it at <code>{OASIS_URL}</code>.
+            </div>
+          )}
         </div>
       )}
 
