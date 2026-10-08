@@ -111,7 +111,7 @@ export function redactPersonal(raw: string): Redaction {
     return "[phone]";
   });
   let nameHits = 0;
-  // full names first, then each surname on its own (signatures, "Mr. Kipkemboi")
+  // full names first, then each surname on its own (signatures, "Mr. Surname")
   const parts = [...names].sort((a, b) => b.length - a.length);
   const surnames = new Set(parts.map((n) => n.split(/\s+/).pop()!).filter((s) => s.length > 3));
   for (const n of [...parts, ...surnames]) {
