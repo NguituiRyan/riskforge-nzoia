@@ -77,9 +77,9 @@ export function depthsOf(b: BuildingProps): Record<RP, number> {
 }
 
 /** depth at any return period: linear in log(RP) between the JRC maps; below 1-in-10 scaled to 0 at the onset */
-export function depthAtRp(d: Record<RP, number>, rp: number): number {
-  if (rp <= ONSET_RP) return 0;
-  if (rp < RPS[0]) return (d[RPS[0]] * Math.log(rp / ONSET_RP)) / Math.log(RPS[0] / ONSET_RP);
+export function depthAtRp(d: Record<RP, number>, rp: number, onset = ONSET_RP): number {
+  if (rp < RPS[0] && rp <= onset) return 0;
+  if (rp < RPS[0]) return (d[RPS[0]] * Math.log(rp / onset)) / Math.log(RPS[0] / onset);
   if (rp >= RPS[RPS.length - 1]) return d[RPS[RPS.length - 1]];
   for (let i = 0; i < RPS.length - 1; i++) {
     const a = RPS[i];
@@ -102,8 +102,8 @@ export interface BuildingResult {
   loss: number;
 }
 
-export function buildingAt(b: BuildingProps, rp: number): BuildingResult {
-  const depth = depthAtRp(depthsOf(b), rp);
+export function buildingAt(b: BuildingProps, rp: number, onset = ONSET_RP): BuildingResult {
+  const depth = depthAtRp(depthsOf(b), rp, onset);
   const eff = Math.max(depth - num(b.floor), 0);
   const dr = damageRatio(b.cls, eff);
   const c = contentsOf(b);
@@ -123,7 +123,7 @@ export interface ScenarioResult {
   byClass: Record<HousingClass, { loss: number; wet: number }>;
 }
 
-export function scenario(buildings: BuildingProps[], rp: number): ScenarioResult {
+export function scenario(buildings: BuildingProps[], rp: number, onset = ONSET_RP): ScenarioResult {
   const byClass = Object.fromEntries(CLASSES.map((c) => [c, { loss: 0, wet: 0 }])) as ScenarioResult["byClass"];
   let loss = 0;
   let wet = 0;
@@ -132,7 +132,7 @@ export function scenario(buildings: BuildingProps[], rp: number): ScenarioResult
   for (const b of buildings) {
     const w = weightOf(b);
     if (w <= 0) continue;
-    const r = buildingAt(b, rp);
+    const r = buildingAt(b, rp, onset);
     loss += r.loss * w;
     byClass[b.cls].loss += r.loss * w;
     if (r.depth > 0) {
@@ -146,12 +146,32 @@ export function scenario(buildings: BuildingProps[], rp: number): ScenarioResult
 }
 
 /** area under the EP curve: trapezoid in annual exceedance probability, onset at zero, flat tail past 1-in-500 */
-export function aal(lossByRp: Record<RP, number>, onset = ONSET_RP): number {
-  const pts: [number, number][] = [[1 / onset, 0], ...RPS.map((r): [number, number] => [1 / r, lossByRp[r]])];
+/** the flood sizes the AAL is integrated over: dense where floods are frequent, because that is where most of
+ *  the average loss comes from */
+export const AAL_RPS = [2, 2.2, 2.4, 2.6, 2.9, 3.2, 3.5, 3.9, 4.3, 4.8, 5.3, 5.9, 6.5, 7.2, 8, 9, 10, 12, 14, 17, 20, 25, 30, 40, 50, 65, 80, 100, 130, 160, 200, 250, 320, 400, 500];
+
+/**
+ * Average annual loss = the area under the loss-exceedance curve: the loss at every flood size from the onset to
+ * 1-in-500 (trapezoid in exceedance probability over AAL_RPS), plus the 1-in-500 loss for every rarer flood (the maps
+ * stop there). Oasis LMF integrates the same curve over its 1,000-event set (oasis/riskforge_oasis.py); the two agree.
+ */
+export function aalOf(lossAt: (rp: number) => number, onset = ONSET_RP): number {
+  const nodes = [onset, ...AAL_RPS.filter((r) => r > onset)];
+  let p0 = 1 / onset;
+  let l0 = lossAt(onset);
   let total = 0;
-  for (let i = 1; i < pts.length; i++) total += ((pts[i - 1][0] - pts[i][0]) * (pts[i - 1][1] + pts[i][1])) / 2;
-  return total + lossByRp[RPS[RPS.length - 1]] / RPS[RPS.length - 1];
+  for (const r of nodes.slice(1)) {
+    const p = 1 / r;
+    const l = lossAt(r);
+    total += ((p0 - p) * (l0 + l)) / 2;
+    p0 = p;
+    l0 = l;
+  }
+  return total + l0 / RPS[RPS.length - 1];
 }
+
+/** a portfolio's AAL if losses started at another flood (e.g. dykes that hold to the 1-in-10) */
+export const portfolioAal = (buildings: BuildingProps[], onset = ONSET_RP) => aalOf((rp) => scenario(buildings, rp, onset).loss, onset);
 
 export const KEY_RPS = [10, 20, 50, 100, 200, 250, 500] as const;
 
@@ -167,14 +187,13 @@ export interface PortfolioResult {
 export function runPortfolio(buildings: BuildingProps[]): PortfolioResult {
   const scenarios: Record<number, ScenarioResult> = {};
   for (const r of KEY_RPS) scenarios[r] = scenario(buildings, r);
-  const lossByRp = Object.fromEntries(RPS.map((r) => [r, scenarios[r].loss])) as Record<RP, number>;
   const perBuildingAal = new Map<string, number>();
   const byClass = Object.fromEntries(CLASSES.map((c) => [c, { count: 0, tiv: 0, aal: 0 }])) as PortfolioResult["byClass"];
   let tiv = 0;
   let count = 0;
+  let total = 0;
   for (const b of buildings) {
-    const own = Object.fromEntries(RPS.map((r) => [r, buildingAt(b, r).loss])) as Record<RP, number>;
-    const a = aal(own);
+    const a = aalOf((r) => buildingAt(b, r).loss);
     perBuildingAal.set(b.id, a); // the building's own AAL, unweighted
     const w = weightOf(b);
     if (w <= 0) continue;
@@ -183,8 +202,9 @@ export function runPortfolio(buildings: BuildingProps[]): PortfolioResult {
     byClass[b.cls].tiv += valueOf(b) * w;
     byClass[b.cls].aal += a * w;
     tiv += valueOf(b) * w;
+    total += a * w;
   }
-  return { count, tiv, byClass, scenarios, aal: aal(lossByRp), perBuildingAal };
+  return { count, tiv, byClass, scenarios, aal: total, perBuildingAal };
 }
 
 /** a building's AAL as it counts in the book: its own AAL times its weight */

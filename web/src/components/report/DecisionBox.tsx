@@ -1,7 +1,5 @@
 import type { ReportProps } from "./Report";
-import type { RP } from "../../lib/types";
-import { RPS } from "../../lib/types";
-import { aal, ONSET_RP } from "../../lib/engine";
+import { ONSET_RP, portfolioAal } from "../../lib/engine";
 import type { ProgrammeResult } from "../../lib/terms";
 import { accumulation, topRisks } from "../../lib/report";
 import { kes } from "../../lib/format";
@@ -32,8 +30,7 @@ export default function DecisionBox({ buildings, res, gazetteer, onPickBuilding,
   const valueInTop3 = top3.reduce((s, a) => s + a.tivInFootprint, 0);
   const risks = topRisks(buildings, res, 3);
 
-  const grossByRp = Object.fromEntries(RPS.map((r) => [r, res.scenarios[r].loss])) as Record<RP, number>;
-  const dykeDrop = 1 - aal(grossByRp, 10) / Math.max(res.aal, 1);
+  const dykeDrop = 1 - portfolioAal(buildings, 10) / Math.max(res.aal, 1);
   const refer = res.aal / Math.max(res.tiv, 1) > REFER_RATE;
   const names = top3.map((a) => a.settlement).join(", ");
 

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import type { BuildingProps, RP } from "../lib/types";
 import { RPS } from "../lib/types";
-import { aal, buildingAt, contentsOf, KEY_RPS, ONSET_RP, severity, valueOf, weightOf } from "../lib/engine";
+import { aalOf, buildingAt, contentsOf, KEY_RPS, ONSET_RP, severity, valueOf, weightOf } from "../lib/engine";
 import EpChart from "./EpChart";
 import { CLASS_UI, CLASS_LABEL, ISSUE_COLOUR, WHERE_LABEL, kes } from "../lib/format";
 import { useWidth } from "../lib/useWidth";
@@ -34,7 +34,7 @@ export default function BuildingCard({
   const contents = c.stock + c.machinery + c.other;
   const value = valueOf(b);
   const losses = Object.fromEntries(KEY_RPS.map((r) => [r, buildingAt(b, r).loss])) as Record<number, number>;
-  const ownAal = aal(Object.fromEntries(RPS.map((r) => [r, losses[r]])) as Record<RP, number>);
+  const ownAal = aalOf((r) => buildingAt(b, r).loss);
   const rpLabel = liveRp ? (liveRp > 2 ? `Live ≈1-in-${Math.round(liveRp)}` : "Live, in bank") : `1-in-${rp}`;
   const hazardSource = b.hz === "site" ? "site flood history" : "JRC flood map";
   const floor = Number(b.floor) || 0;

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Badge, Card } from "./ui";
 import type { ReportProps } from "./Report";
 import FinancialTerms from "./FinancialTerms";
+import OasisPanel from "./OasisPanel";
 import { RPS, type RP } from "../../lib/types";
 import { buildingAt, depthAtRp, KEY_RPS } from "../../lib/engine";
 import { readDocument, redactPersonal, type DocText, type Redaction } from "../../lib/docText";
@@ -268,6 +269,9 @@ export default function OfferPanel(p: ReportProps) {
             </Card>
             <Card title="5 · Financial engine" hint={`ground-up → ${kes(run.programme.deductible)} deductible → ${run.programme.limit ? kes(run.programme.limit) : "no"} limit → Kenya Re ${Math.round(run.programme.qs * 100)}%`} className="lg:col-span-2">
               <FinancialTerms programme={run.programme} result={run.financial} reinsurerName={`Kenya Re ${Math.round(run.programme.qs * 100)}%`} />
+              <div className="mt-3">
+                <OasisPanel name={run.insured} buildings={run.buildings} programme={run.programme} preview={run.financial} reinsurerName={`Kenya Re ${Math.round(run.programme.qs * 100)}%`} />
+              </div>
               {run.experience.aal !== null && (
                 <div className="mt-2 grid grid-cols-2 gap-2 text-[12px] sm:grid-cols-4">
                   <Mini label="Model AAL, ground-up" value={kes(run.financial.aal.gu)} />

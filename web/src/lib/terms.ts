@@ -12,9 +12,8 @@
  * A "risk" is a policy: one building in the synthetic books, a whole site for a document-ingested offer (b.policy),
  * which can carry its own deductible and limit (b.ded, b.lim). Weights apply as everywhere else.
  */
-import type { BuildingProps, RP } from "./types";
-import { RPS } from "./types";
-import { aal, buildingAt, KEY_RPS, valueOf, weightOf } from "./engine";
+import type { BuildingProps } from "./types";
+import { aalOf, AAL_RPS, buildingAt, KEY_RPS, valueOf, weightOf } from "./engine";
 
 export interface Programme {
   /** KES per risk per event */
@@ -78,8 +77,10 @@ export interface ProgrammeResult {
 export function runProgramme(buildings: BuildingProps[], p: Programme): ProgrammeResult {
   const byRp: Record<number, Layers> = {};
   for (const r of KEY_RPS) byRp[r] = layersAt(buildings, r, p);
-  const curve = (k: keyof Layers) => Object.fromEntries(RPS.map((r) => [r, byRp[r][k]])) as Record<RP, number>;
-  const a = { gu: aal(curve("gu")), gross: aal(curve("gross")), reinsurer: aal(curve("reinsurer")), net: aal(curve("net")) };
+  // every party's average loss over the same flood sizes as the portfolio AAL (terms are not linear, so each flood counts)
+  const at = new Map<number, Layers>(AAL_RPS.map((r) => [r, byRp[r] ?? layersAt(buildings, r, p)]));
+  const of = (k: "gu" | "gross" | "reinsurer" | "net") => aalOf((r) => (at.get(r) ?? layersAt(buildings, r, p))[k]);
+  const a = { gu: of("gu"), gross: of("gross"), reinsurer: of("reinsurer"), net: of("net") };
   const risk = a.reinsurer + 0.1 * Math.max(byRp[200].reinsurer - a.reinsurer, 0);
   const value = buildings.reduce((s, b) => s + valueOf(b) * Math.max(weightOf(b), 0), 0);
   return { byRp, aal: a, reinsurerPremium: risk / 0.85, value };

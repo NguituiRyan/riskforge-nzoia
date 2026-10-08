@@ -6,6 +6,7 @@ import { kes } from "../../lib/format";
 import { useWidth } from "../../lib/useWidth";
 import EpChart from "../EpChart";
 import FinancialTerms from "./FinancialTerms";
+import OasisPanel from "./OasisPanel";
 import { Kpi } from "./ui";
 
 export interface RegionGroup {
@@ -137,6 +138,9 @@ export default function RegionView({ buildings, groups, generated, source }: { b
       <div className="rounded-xl bg-white/[0.03] p-3">
         <div className="mb-2 text-[13px] font-medium text-slate-200">Financial engine · ground-up to net (edit the terms)</div>
         <FinancialTerms programme={programme} setProgramme={setProgramme} result={prog} reinsurerName={`Kenya Re ${Math.round(share * 100)}%`} />
+        <div className="mt-3">
+          <OasisPanel name={`Sample · ${counties.join(", ") || "Kenya"}`} buildings={buildings} programme={programme} preview={prog} reinsurerName={`Kenya Re ${Math.round(share * 100)}%`} />
+        </div>
       </div>
 
       <ul className="list-disc space-y-0.5 pl-5 text-[12px] text-slate-400">

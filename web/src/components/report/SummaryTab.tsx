@@ -1,15 +1,16 @@
 import EpChart from "../EpChart";
 import DecisionBox from "./DecisionBox";
 import FinancialTerms from "./FinancialTerms";
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
+import OasisPanel from "./OasisPanel";
+import { loadOasisBook, type OasisResult } from "../../lib/oasis";
 import { runProgramme } from "../../lib/terms";
 import { HazardBars, ShareBars, StackedLossBars } from "../charts";
 import { lossesOf } from "../Panels";
 import { Card, Kpi, td, th, tr } from "./ui";
 import type { ReportProps } from "./Report";
-import type { RP } from "../../lib/types";
-import { CLASSES, RPS } from "../../lib/types";
-import { aal, KEY_RPS, ONSET_RP, technicalPremium } from "../../lib/engine";
+import { CLASSES } from "../../lib/types";
+import { KEY_RPS, ONSET_RP, portfolioAal, technicalPremium } from "../../lib/engine";
 import { accumulation, topRisks } from "../../lib/report";
 import { CLASS_UI, CLASS_LABEL, floodedText, kes } from "../../lib/format";
 
@@ -18,8 +19,16 @@ const pct = (x: number, d = 2) => `${(x * 100).toFixed(d)}%`;
 export default function SummaryTab(props: ReportProps) {
   const { stats, portfolio, buildings, res, baseRes, aiRows, gazetteer, live, onPickBuilding, programme, setProgramme } = props;
   const prog = useMemo(() => runProgramme(buildings, programme), [buildings, programme]);
+  // the book's Oasis LMF run ships with the site; it stands while the book and terms are the defaults
+  const [oasisBook, setOasisBook] = useState<OasisResult | null>(null);
+  useEffect(() => {
+    let off = false;
+    loadOasisBook().then((r) => !off && setOasisBook(r));
+    return () => {
+      off = true;
+    };
+  }, []);
   const prem = technicalPremium(res);
-  const lossByRp = Object.fromEntries(RPS.map((r) => [r, res.scenarios[r].loss])) as Record<RP, number>;
   const acc = accumulation(buildings, gazetteer).slice(0, 8);
   const top = topRisks(buildings, res, 10);
   const dAal = res.aal - baseRes.aal;
@@ -60,6 +69,9 @@ export default function SummaryTab(props: ReportProps) {
 
       <Card title="Financial engine · ground-up to net" hint="deductible → limit → gross → quota share → cat XL → net">
         <FinancialTerms programme={programme} setProgramme={setProgramme} result={prog} />
+        <div className="mt-4">
+          <OasisPanel name={props.portfolioName} buildings={buildings} programme={programme} preview={prog} precomputed={portfolio === "book" ? oasisBook : null} />
+        </div>
       </Card>
 
       <Pipeline stats={stats} res={res} />
@@ -224,7 +236,7 @@ export default function SummaryTab(props: ReportProps) {
                 [5, "1-in-5"],
                 [10, "1-in-10 (dykes hold to the 10-year flood)"],
               ].map(([o, label]) => {
-                const v = aal(lossByRp, o as number);
+                const v = o === 2 ? res.aal : portfolioAal(buildings, o as number);
                 return (
                   <tr key={o} className={`${tr} text-slate-200`}>
                     <td className={td}>{label}</td>
@@ -253,7 +265,7 @@ function Pipeline({ stats, res }: Pick<ReportProps, "stats" | "res">) {
     ["1 · Hazard", "Six JRC return-period depth maps", `${Math.round(stats.floodLandKm2["100"])} km² of land flooded at 1-in-100`, "real"],
     ["2 · Vulnerability", "Depth-damage curve per class", `${Math.round(meanDr * 100)}% average damage to flooded value at 1-in-100`, "assumption"],
     ["3 · Exposure", `${res.count.toLocaleString("en-KE")} buildings`, `${kes(res.tiv)} insured · ${floodedText(at100.wet, at100.wetW)} in the 1-in-100 flood`, "synthetic"],
-    ["4 · Financial engine", "Loss = damage × value, per return period", `1-in-100 ${kes(at100.loss)} · AAL ${kes(res.aal)}`, "engine"],
+    ["4 · Financial engine", "Oasis LMF: ground-up → terms → reinsurance", `1-in-100 ${kes(at100.loss)} · AAL ${kes(res.aal)}`, "engine"],
     ["Decision", "EP curve, PML, price", `1-in-250 ${kes(res.scenarios[250].loss)} · premium ${kes(prem.gross)} (illustr.)`, "engine"],
   ];
   return (

@@ -11,7 +11,7 @@ const STEPS: [string, string, string][] = [
   ["1 · Hazard", "Every building's flood depth read from the six JRC maps (10–500 years); a 0–1 severity score = depth ÷ 4 m alongside. Lake Victoria cells masked.", "Buildings tab · building card"],
   ["2 · Vulnerability", "Documented depth-damage function per housing class: cap × Huizinga-Africa(k × depth).", "Vulnerability tab"],
   ["3 · Exposure", "Starter CSV from the hosts (with its location issues flagged) and the 1,200-building Risk Forge book placed on WorldPop population; same columns as exposure_nzoia_synthetic.csv.", "Portfolio switch · Buildings tab"],
-  ["4 · Financial engine", "Loss = damage ratio × insured value per building and return period; portfolio loss per return period; EP curve; AAL; 1-in-250 by interpolation.", "Summary tab · EP curve"],
+  ["4 · Financial engine", "Oasis LMF computes the losses: ground-up (gulmc), insurance terms and reinsurance (fmpy), AAL (aalpy) and EP curves (lecpy), from OED exposure and the Risk Forge Oasis model (JRC footprints, class damage curves). The browser engine gives an instant preview that matches Oasis to within 0.5%.", "Summary tab · Oasis panel"],
   ["5 · AI layer", "Risk Forge AI (built on Claude Sonnet 5.5) turns broker free text into exposure rows that change the losses (underwriter approves), and writes a briefing whose numbers are verified against the engine.", "AI analyst tab"],
   ["6 · Results interface", "Total exposure, loss at key return periods, EP curve, class breakdown, AI output - with real / synthetic / assumption labels throughout.", "This report and the map"],
 ];
@@ -26,6 +26,7 @@ const SOURCES: [string, "real" | "synthetic" | "assumption", string, string][] =
   ["Kenya / Uganda borders; Lake Victoria; Nzoia river; place names", "real", "geoBoundaries CC BY 4.0 · Natural Earth PD · OpenStreetMap ODbL", "geoboundaries.org · openstreetmap.org"],
   ["JRC global flood maps cut to Kenya (same product and grid as the Nzoia clips; checked cell for cell: 0.00 m difference)", "real", "European Commission JRC; free use", "jeodpp.jrc.ec.europa.eu/ftp/jrc-opendata/FLOODS/GlobalMaps"],
   ["16,635 Kenyan places with their county (towns, villages, reserves, lodges, rivers…)", "real", "GeoNames CC BY 4.0", "geonames.org"],
+  ["Oasis Loss Modelling Framework 2.5.8 (the loss calculation)", "real", "Oasis LMF, BSD 3-Clause", "oasislmf.org"],
   ["Starter exposure CSV (500 buildings)", "synthetic", "Hackathon hosts", "team_b_nzoia/"],
   ["Risk Forge book (1,200 buildings)", "synthetic", "scripts/generate_book.py, seed 2026", "data/portfolios/"],
   ["Imagery and terrain in the 3D view", "real", "Esri World Imagery · AWS Terrain Tiles (Mapzen)", "display only"],
