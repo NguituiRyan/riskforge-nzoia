@@ -1,8 +1,9 @@
 /**
  * The financial (loss) calculation on Oasis LMF (oasis/riskforge_oasis.py, oasis/server.py).
- * Oasis needs a Linux worker (its install is ~740 MB, too big for a web function), so the browser sends the
- * portfolio to the runner and shows what Oasis returns. The book's Oasis results are precomputed and ship with the
- * site (/data/oasis_book.json); other portfolios run when someone presses "Run on Oasis LMF".
+ * Oasis needs a Linux worker (its install is ~740 MB, too big for a web function). The browser sends the portfolio to
+ * the site's own /api/oasis relay, which forwards it to the worker (oasis/start_public.sh keeps it registered).
+ * The book's Oasis results are precomputed and ship with the site (/data/oasis_book.json); other portfolios run when
+ * someone presses "Run on Oasis LMF".
  */
 import type { BuildingProps } from "./types";
 import { RPS } from "./types";
@@ -28,9 +29,20 @@ export interface OasisResult {
   perLocationAal: Record<string, number>;
 }
 
-/** where the runner listens: VITE_OASIS_URL, else this machine (WSL forwards localhost) */
-export const OASIS_URL: string = (import.meta.env.VITE_OASIS_URL as string | undefined) || "http://localhost:8765";
-const OASIS_LOCAL = /\/\/(localhost|127\.0\.0\.1)[:/]/.test(OASIS_URL);
+/** a runner called directly (VITE_OASIS_URL); by default the site's relay is used */
+export const OASIS_URL: string = (import.meta.env.VITE_OASIS_URL as string | undefined) || "";
+const RUN_URL = OASIS_URL ? `${OASIS_URL}/run` : "/api/oasis";
+
+/** is a runner reachable right now (through the relay)? */
+export async function oasisStatus(): Promise<{ online: boolean; oasislmf?: string; busy?: boolean }> {
+  try {
+    const r = await fetch(OASIS_URL ? `${OASIS_URL}/health` : "/api/oasis", { signal: AbortSignal.timeout(8000) });
+    const j = (await r.json()) as { online?: boolean; ok?: boolean; oasislmf?: string; busy?: boolean };
+    return { online: !!(j.online ?? j.ok), oasislmf: j.oasislmf, busy: j.busy };
+  } catch {
+    return { online: false };
+  }
+}
 
 const FIELDS = ["id", "cls", "tiv", "lat", "lon", "floor", "cs", "cm", "co", "cal", "w", "policy", "ded", "lim", ...RPS.map((r) => `d${r}`)];
 
@@ -44,22 +56,18 @@ function slim(b: BuildingProps) {
 export async function runOasis(name: string, buildings: BuildingProps[], programme: Programme, signal?: AbortSignal): Promise<OasisResult> {
   let res: Response;
   try {
-    res = await fetch(`${OASIS_URL}/run`, {
+    res = await fetch(RUN_URL, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ name, buildings: buildings.map(slim), programme }),
       signal,
     });
   } catch {
-    throw new Error(
-      OASIS_LOCAL
-        ? `No Oasis runner at ${OASIS_URL}. Start it on the Linux worker: python oasis/server.py`
-        : `Could not reach the Oasis runner (${OASIS_URL}). Check the connection and try again.`,
-    );
+    throw new Error("Could not reach Oasis. Check the connection and try again.");
   }
-  // a free host that was asleep answers with a "starting" page instead of JSON while it wakes up
+  // a tunnel or proxy in trouble answers with an HTML error page instead of JSON
   if (!(res.headers.get("content-type") ?? "").includes("json"))
-    throw new Error("The Oasis runner is waking up (the free host sleeps when idle). Try again in a minute.");
+    throw new Error(`Oasis answered unexpectedly (HTTP ${res.status}). Try again in a minute.`);
   const data = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
   if (!res.ok) throw new Error((data as { error?: string }).error ?? `HTTP ${res.status}`);
   return data as OasisResult;

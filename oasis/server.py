@@ -9,6 +9,7 @@ Private Network Access preflights for those origins only. One run at a time; por
 Run (Linux / WSL):  python server.py [port]        default 8765, listening on 127.0.0.1
 In a container (Cloud Run): HOST=0.0.0.0, PORT from the platform, RF_REQUIRE_ORIGIN=1 (runs only from the site).
 """
+import hmac
 import json
 import os
 import sys
@@ -25,6 +26,9 @@ MAX_BYTES = 20 * 1024 * 1024
 MAX_BUILDINGS = 5000
 RUNS_PER_HOUR = int(os.environ.get("RF_RUNS_PER_HOUR", "30"))  # per client address, per instance
 REQUIRE_ORIGIN = os.environ.get("RF_REQUIRE_ORIGIN") == "1"
+# behind the site's /api/oasis relay (oasis/start_public.sh): runs must carry the shared secret
+RELAY_SECRET = os.environ.get("RF_RELAY_SECRET", "")
+REQUIRE_SECRET = os.environ.get("RF_REQUIRE_SECRET") == "1"
 recent = defaultdict(deque)
 
 
@@ -99,11 +103,15 @@ class Handler(BaseHTTPRequestHandler):
     def do_POST(self):
         if not self.path.startswith("/run"):
             return self.reply(404, {"error": "not found"})
-        if REQUIRE_ORIGIN and self.headers.get("Origin", "") not in ALLOWED_ORIGINS:
-            return self.reply(403, {"error": "runs are accepted from the Risk Forge site only"})
-        ip = (self.headers.get("X-Forwarded-For") or self.client_address[0]).split(",")[0].strip()
-        if limited(ip):
-            return self.reply(429, {"error": f"limit of {RUNS_PER_HOUR} Oasis runs an hour reached; try later"})
+        relayed = bool(RELAY_SECRET) and hmac.compare_digest(self.headers.get("x-relay-secret", ""), RELAY_SECRET)
+        if REQUIRE_SECRET and not relayed:
+            return self.reply(403, {"error": "runs are accepted through the Risk Forge site only"})
+        if not relayed:  # the relay already limits each visitor; direct callers are limited here
+            if REQUIRE_ORIGIN and self.headers.get("Origin", "") not in ALLOWED_ORIGINS:
+                return self.reply(403, {"error": "runs are accepted from the Risk Forge site only"})
+            ip = (self.headers.get("X-Forwarded-For") or self.client_address[0]).split(",")[0].strip()
+            if limited(ip):
+                return self.reply(429, {"error": f"limit of {RUNS_PER_HOUR} Oasis runs an hour reached; try later"})
         n = int(self.headers.get("content-length") or 0)
         if not 0 < n <= MAX_BYTES:
             return self.reply(413, {"error": "portfolio too large"})

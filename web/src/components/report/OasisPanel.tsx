@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { BuildingProps } from "../../lib/types";
 import type { Programme, ProgrammeResult } from "../../lib/terms";
-import { gap, OASIS_URL, runOasis, sameProgramme, type OasisResult } from "../../lib/oasis";
+import { gap, oasisStatus, runOasis, sameProgramme, type OasisResult } from "../../lib/oasis";
 import { kes } from "../../lib/format";
 
 const ROWS = [10, 20, 50, 100, 200, 250, 500];
@@ -35,6 +35,15 @@ export default function OasisPanel({
   const [tick, setTick] = useState(0);
   const abort = useRef<AbortController | null>(null);
   useEffect(() => () => abort.current?.abort(), []);
+  // is the Oasis worker reachable right now? (it runs off-site; without it the panel shows the precomputed run)
+  const [online, setOnline] = useState<boolean | null>(null);
+  useEffect(() => {
+    let off = false;
+    oasisStatus().then((s) => !off && setOnline(s.online));
+    return () => {
+      off = true;
+    };
+  }, []);
   useEffect(() => {
     if (!busy) return;
     const id = setInterval(() => setTick(Date.now()), 500);
@@ -69,6 +78,12 @@ export default function OasisPanel({
         <div className="flex flex-wrap items-center gap-2">
           <span className="font-display text-[15px] text-slate-50">Loss calculation · Oasis LMF</span>
           <span className="rounded-full bg-violet-300/15 px-2 py-0.5 text-[11px] text-violet-100 ring-1 ring-violet-300/30">{result ? result.engine : "open-source industry framework"}</span>
+          {online !== null && (
+            <span className={`inline-flex items-center gap-1 text-[11px] ${online ? "text-emerald-300" : "text-slate-400"}`} title={online ? "The Oasis worker is reachable: runs go to Oasis now" : "The Oasis worker is offline: showing the precomputed Oasis run and the instant preview"}>
+              <span className={`h-1.5 w-1.5 rounded-full ${online ? "bg-emerald-400" : "bg-slate-500"}`} />
+              {online ? "Oasis online" : "Oasis offline"}
+            </span>
+          )}
         </div>
         <button onClick={go} disabled={busy} className="rounded-lg bg-violet-400/20 px-3 py-1.5 text-[12px] font-medium text-violet-50 ring-1 ring-violet-300/40 hover:bg-violet-400/30 disabled:opacity-60">
           {busy ? `Oasis is running… ${Math.max(0, Math.round((tick - t0) / 1000))} s` : result ? "Run again on Oasis LMF" : stale ? "Re-run on Oasis LMF for these terms" : "Run on Oasis LMF"}
@@ -78,11 +93,9 @@ export default function OasisPanel({
       {err && (
         <div className="mt-2 rounded-lg bg-rose-500/15 px-3 py-2 text-[12px] text-rose-100">
           {err}
-          {/localhost|127\.0\.0\.1/.test(OASIS_URL) && (
-            <div className="mt-1 text-rose-200/80">
-              The runner is <code>oasis/server.py</code> on a Linux machine with oasislmf (WSL on this laptop). The page looks for it at <code>{OASIS_URL}</code>.
-            </div>
-          )}
+          <div className="mt-1 text-rose-200/80">
+            Oasis runs on a Linux worker outside the website (<code>oasis/start_oasis_public.cmd</code> on the Risk Forge laptop). The table above keeps the last Oasis run and the instant preview.
+          </div>
         </div>
       )}
 
