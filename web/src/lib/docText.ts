@@ -82,7 +82,7 @@ export interface Redaction {
   counts: { emails: number; phones: number; names: number };
 }
 
-// a person's name: 2-3 capitalised words on one line (a line break ends it, so "Koech\nNzoia Valley" stays apart)
+// a person's name: 2-3 capitalised words on one line (a line break ends it, so "Surname\nCompany Name" stays apart)
 const NAME = String.raw`([A-Z][a-z]+(?:[ \t]+[A-Z][a-z]+){1,2})`;
 const TITLE_NAME = new RegExp(String.raw`\b(?:Mr|Mrs|Ms|Miss|Dr|Eng|Prof)\.?[ \t]+([A-Z][a-z]+(?:[ \t]+[A-Z][a-z]+){0,2})`, "g");
 const ROLE_NAME = new RegExp(String.raw`\b(?:Manager|Director|Executive|Officer|Chairman|Underwriter)[ \t]*:[ \t]*(?:(?:Mr|Mrs|Ms|Dr)\.?[ \t]+)?${NAME}`, "g");
