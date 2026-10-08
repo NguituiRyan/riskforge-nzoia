@@ -210,7 +210,7 @@ export default function App() {
 
           {/* building details */}
           {selected && (
-            <div className="rise-in absolute inset-x-3 bottom-[226px] z-10 max-h-[46dvh] overflow-y-auto sm:left-auto sm:right-3 sm:w-[440px] lg:inset-x-auto lg:bottom-4 lg:left-[388px] lg:right-auto lg:max-h-[60dvh]">
+            <div className="rise-in scroll-thin absolute inset-x-3 bottom-[226px] z-10 max-h-[calc(100dvh-226px-84px)] overflow-y-auto rounded-2xl lg:bottom-12 lg:left-[372px] lg:right-[340px] lg:max-h-[calc(100dvh-64px)]">
               <BuildingCard b={selected} rp={rp} liveRp={live ? live.rp ?? 1 : null} onClose={() => setSelected(null)} />
             </div>
           )}

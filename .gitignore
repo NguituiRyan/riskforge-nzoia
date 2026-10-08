@@ -19,6 +19,10 @@ build/
 # hackathon source documents and meeting notes stay local (not ours to publish)
 *.docx
 *.pdf
+# ...except our own fictional sample offers (samples/make_offers.py)
+!samples/offers/*.pdf
+!samples/offers/*.docx
+!web/public/samples/*.pdf
 Kenya_Re_hackathon_briefing_transcript.md
 Kenya_Re_Hackathon_Day1_Meeting_Notes.md
 STEP_BY_STEP_GUIDE.md
@@ -38,3 +42,6 @@ Thumbs.db
 
 # river node Wi-Fi password and signing key
 hardware/**/secrets.h
+
+# typescript incremental build info
+*.tsbuildinfo

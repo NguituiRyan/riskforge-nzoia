@@ -123,7 +123,7 @@ export function toCsv(buildings: BuildingProps[], res: PortfolioResult): string 
   head.push("aal_kes", "aal_in_book_kes");
   const lines = [head.join(",")];
   for (const b of buildings) {
-    const row: unknown[] = [b.id, b.lat, b.lon, b.cls, b.area, b.cost, Math.round(b.tiv), true, b.src === "ai" ? "AI-ingested (Claude), approved by underwriter" : "synthetic", b.settlement ?? "", b.where, weightOf(b)];
+    const row: unknown[] = [b.id, b.lat, b.lon, b.cls, b.area, b.cost, Math.round(b.tiv), true, b.src === "ai" ? "AI-ingested (Risk Forge AI), approved by underwriter" : "synthetic", b.settlement ?? "", b.where, weightOf(b)];
     for (const rp of RPS as RP[]) {
       const r = buildingAt(b, rp);
       row.push(r.depth.toFixed(2), severity(r.depth).toFixed(3), r.dr.toFixed(3), Math.round(r.loss));

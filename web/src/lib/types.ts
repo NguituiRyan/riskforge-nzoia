@@ -23,7 +23,7 @@ export interface BuildingProps {
   stratum?: "floodplain" | "basin";
   /** weight in portfolio totals: the book's sample weight; 1 if absent; 0 = excluded (lake, permanent water) */
   w?: number;
-  /** "ai" for rows added through the Claude exposure ingestion and approved by the underwriter */
+  /** "ai" for rows added through the AI exposure ingestion and approved by the underwriter */
   src?: "ai";
   confidence?: number;
   [key: string]: string | number | undefined;

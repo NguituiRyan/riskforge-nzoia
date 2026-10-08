@@ -12,7 +12,7 @@ const STEPS: [string, string, string][] = [
   ["2 · Vulnerability", "Documented depth-damage function per housing class: cap × Huizinga-Africa(k × depth).", "Vulnerability tab"],
   ["3 · Exposure", "Starter CSV from the hosts (with its location issues flagged) and the 1,200-building Risk Forge book placed on WorldPop population; same columns as exposure_nzoia_synthetic.csv.", "Portfolio switch · Buildings tab"],
   ["4 · Financial engine", "Loss = damage ratio × insured value per building and return period; portfolio loss per return period; EP curve; AAL; 1-in-250 by interpolation.", "Summary tab · EP curve"],
-  ["5 · AI layer", "Claude Sonnet 5.5 turns broker free text into exposure rows that change the losses (underwriter approves), and writes a briefing whose numbers are verified against the engine.", "AI analyst tab"],
+  ["5 · AI layer", "Risk Forge AI (built on Claude Sonnet 5.5) turns broker free text into exposure rows that change the losses (underwriter approves), and writes a briefing whose numbers are verified against the engine.", "AI analyst tab"],
   ["6 · Results interface", "Total exposure, loss at key return periods, EP curve, class breakdown, AI output - with real / synthetic / assumption labels throughout.", "This report and the map"],
 ];
 
@@ -74,7 +74,7 @@ export default function SourcesTab({ stats, baseBuildings, res, aiRows, portfoli
   const note = `# Risk Forge - written note (Team B, Nzoia Basin)
 
 ## What we built
-An end-to-end river-flood catastrophe model for the lower Nzoia basin: hazard (JRC return-period depth maps) -> vulnerability (class-specific depth-damage curves) -> exposure (synthetic portfolios) -> financial engine (loss per building and return period, EP curve, AAL, 1-in-250), with an AI layer (Claude Sonnet 5.5) and a live river-level node (ESP32) feeding the same model. Results interface: 3D map plus an underwriter report.
+An end-to-end river-flood catastrophe model for the lower Nzoia basin: hazard (JRC return-period depth maps) -> vulnerability (class-specific depth-damage curves) -> exposure (synthetic portfolios) -> financial engine (loss per building and return period, EP curve, AAL, 1-in-250), with an AI layer (Risk Forge AI, built on Anthropic's Claude Sonnet 5.5) and a live river-level node (ESP32) feeding the same model. Results interface: 3D map plus an underwriter report.
 
 ## Data sources
 ${SOURCES.map(([name, kind, lic]) => `- ${name} - ${kind}; ${lic}`).join("\n")}
@@ -88,10 +88,10 @@ ${assumptions.map(([a, why]) => `- ${a}: ${why}`).join("\n")}
 - Risk Forge book: ${stats.portfolios.book.count} synthetic buildings placed on real WorldPop population on Kenyan land, never on the river channel or lake edge; attributes drawn from the metadata ranges. The flood plain is over-sampled (${stats.bookStrata.floodplain} rows) and the totals are weighted back to population; unweighted, the sample would show ${kes(stats.portfolios.bookUnweighted.perRp["100"].loss)} at 1-in-100.
 
 ## AI feature
-1. Exposure intake: an underwriter pastes a broker's free-text schedule; Claude returns rows shaped like exposure_nzoia_synthetic.csv (class, count, floor area, value, place from our gazetteer, confidence, assumptions). The engine geocodes them, attaches the JRC depths, applies the damage curves and shows the change in AAL and 1-in-100 loss; the underwriter approves before the rows enter the book. Instructions hidden in the pasted text are treated as data (prompt-injection test included in the demo).
-2. Offer documents: an underwriter drops a broker's offer (PDF or Word). The browser reads it and removes personal details; Claude extracts the site, buildings, contents, flood history and terms, quoting the document for every number (each quote is checked against the text). The engine then runs hazard, vulnerability (calibrated to the site's claims), exposure and the financial terms, and recommends approve, approve with conditions, or decline, with a counter-offer.
-3. Briefing: Claude writes a short underwriting briefing from the engine's aggregated output and must cite every figure with its source path; the interface verifies each number against the engine.
-Only synthetic text and aggregated numbers are sent to Claude; the model sits behind a provider interface so an in-country model can replace it.
+1. Exposure intake: an underwriter pastes a broker's free-text schedule; Risk Forge AI returns rows shaped like exposure_nzoia_synthetic.csv (class, count, floor area, value, place from our gazetteer, confidence, assumptions). The engine geocodes them, attaches the JRC depths, applies the damage curves and shows the change in AAL and 1-in-100 loss; the underwriter approves before the rows enter the book. Instructions hidden in the pasted text are treated as data (prompt-injection test included in the demo).
+2. Offer documents: an underwriter drops a broker's offer (PDF or Word). The browser reads it and removes personal details; Risk Forge AI extracts the site, buildings, contents, flood history and terms, quoting the document for every number (each quote is checked against the text). The engine then runs hazard, vulnerability (calibrated to the site's claims), exposure and the financial terms, and recommends approve, approve with conditions, or decline, with a counter-offer.
+3. Briefing: Risk Forge AI writes a short underwriting briefing from the engine's aggregated output and must cite every figure with its source path; the interface verifies each number against the engine.
+Only redacted text and aggregated numbers are sent to the AI (Claude Sonnet 5.5); the model sits behind a provider interface so an in-country model can replace it.
 
 ## Results (${portfolioName}${aiRows.length ? `, incl. ${aiRows.length} AI-added buildings` : ""})
 - Total exposure ${kes(res.tiv)} over ${res.count} buildings

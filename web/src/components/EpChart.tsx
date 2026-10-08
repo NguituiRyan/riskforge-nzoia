@@ -1,8 +1,6 @@
 import type { RP } from "../lib/types";
 import { RPS } from "../lib/types";
 
-const PAD = { l: 46, r: 12, t: 12, b: 24 };
-
 function shortKes(n: number) {
   if (n >= 1e9) return `${(n / 1e9).toFixed(1)}bn`;
   if (n >= 1e6) return `${(n / 1e6).toFixed(n >= 1e7 ? 0 : 1)}M`;
@@ -20,11 +18,16 @@ interface Props {
   liveRp?: number | null;
   onPick?: (r: RP) => void;
   height?: number;
+  /** drawing width in px; pass the rendered width so text stays at its true size */
+  width?: number;
+  /** axis label size in px */
+  fontSize?: number;
 }
 
 /** Loss vs return period on a log axis (the EP curve as underwriters read it) */
-export default function EpChart({ losses, baseline, onsetRp, rp, liveRp, onPick, height = 156 }: Props) {
-  const W = 300;
+export default function EpChart({ losses, baseline, onsetRp, rp, liveRp, onPick, height = 156, width = 300, fontSize = 9 }: Props) {
+  const W = width;
+  const PAD = { l: Math.round(fontSize * 5), r: 12, t: 12, b: Math.round(fontSize * 2.6) };
   const H = height;
   const lo = Math.log10(onsetRp);
   const hi = Math.log10(500);
@@ -48,13 +51,13 @@ export default function EpChart({ losses, baseline, onsetRp, rp, liveRp, onPick,
       {ticks.map((t) => (
         <g key={t}>
           <line x1={PAD.l} x2={W - PAD.r} y1={y(t)} y2={y(t)} style={{ stroke: "var(--chart-grid)" }} />
-          <text x={PAD.l - 6} y={y(t) + 3} textAnchor="end" className="fill-slate-400 text-[9px]">
+          <text x={PAD.l - 6} y={y(t) + fontSize / 3} textAnchor="end" className="fill-slate-400" fontSize={fontSize}>
             {shortKes(t)}
           </text>
         </g>
       ))}
       {[onsetRp, 10, 50, 100, 250, 500].map((r) => (
-        <text key={r} x={x(r)} y={H - 8} textAnchor="middle" className="fill-slate-400 text-[9px]">
+        <text key={r} x={x(r)} y={H - fontSize * 0.8} textAnchor="middle" className="fill-slate-400" fontSize={fontSize}>
           {r === onsetRp ? `${r}y` : r}
         </text>
       ))}
@@ -72,7 +75,7 @@ export default function EpChart({ losses, baseline, onsetRp, rp, liveRp, onPick,
       {liveRp && liveRp > onsetRp && (
         <g>
           <line x1={x(Math.min(liveRp, 500))} x2={x(Math.min(liveRp, 500))} y1={PAD.t} y2={H - PAD.b} style={{ stroke: "var(--chart-live)" }} strokeWidth={1.5} />
-          <text x={x(Math.min(liveRp, 500)) + 3} y={PAD.t + 8} style={{ fill: "var(--chart-live)" }} className="text-[9px]">
+          <text x={x(Math.min(liveRp, 500)) + 3} y={PAD.t + 8} style={{ fill: "var(--chart-live)" }} fontSize={fontSize}>
             live
           </text>
         </g>

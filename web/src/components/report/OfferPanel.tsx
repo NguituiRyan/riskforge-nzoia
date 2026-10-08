@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Badge, Card } from "./ui";
 import type { ReportProps } from "./Report";
 import FinancialTerms from "./FinancialTerms";
@@ -16,7 +16,25 @@ interface ExtractResponse {
 }
 
 const CURVE_RPS = [2, 2.5, 3, 4, 5, 7, 10, 20, 50, 100, 200, 500];
-const STEPS = ["Read", "Extract", "Hazard", "Vulnerability", "Exposure", "Financial", "Decision"];
+/** what the AI is writing, streamed from /api/offer while it reads */
+interface Progress {
+  section: string;
+  insured?: string | null;
+  place?: string | null;
+  buildings?: number;
+  contents?: number;
+  floods?: number;
+  terms?: boolean;
+  facts?: number;
+}
+/** fictional sample offers (samples/make_offers.py): one the model approves, one it declines */
+const SAMPLES = [
+  { file: "approve_mukhobola_dairy.pdf", label: "Dairy on raised floors", tone: "text-emerald-200 ring-emerald-400/30 hover:bg-emerald-400/10" },
+  { file: "decline_rugunga_rice_mill.pdf", label: "Rice mill in the flood plain", tone: "text-rose-200 ring-rose-400/30 hover:bg-rose-400/10" },
+];
+
+/** the engine stages shown one by one once the AI has answered */
+const PIPE = 6;
 const VERDICT_TONE: Record<OfferRun["decision"]["verdict"], string> = {
   APPROVE: "bg-emerald-400/15 text-emerald-200 ring-emerald-400/40",
   "APPROVE WITH CONDITIONS": "bg-amber-300/15 text-amber-100 ring-amber-300/40",
@@ -25,7 +43,7 @@ const VERDICT_TONE: Record<OfferRun["decision"]["verdict"], string> = {
 };
 
 /**
- * Upload a broker's offer (PDF / Word) -> Claude extracts the risk -> the CAT model runs every stage on it ->
+ * Upload a broker's offer (PDF / Word) -> Risk Forge AI extracts the risk -> the CAT model runs every stage on it ->
  * a decision the underwriter can approve (the buildings join the map) or decline. Visual first; numbers on hover.
  */
 export default function OfferPanel(p: ReportProps) {
@@ -38,6 +56,12 @@ export default function OfferPanel(p: ReportProps) {
   const [calibrate, setCalibrate] = useState(true);
   const [decided, setDecided] = useState<"approved" | "declined" | null>(null);
   const [showText, setShowText] = useState(false);
+  const [pages, setPages] = useState<{ done: number; total: number } | null>(null);
+  const [progress, setProgress] = useState<Progress | null>(null);
+  const [startedAt, setStartedAt] = useState(0);
+  const [tick, setTick] = useState(0);
+  const [aiSeconds, setAiSeconds] = useState<number | null>(null);
+  const [revealed, setRevealed] = useState(PIPE);
   const batch = 1 + Math.max(0, ...aiRows.map((b) => Number(b.batch) || 0));
 
   const run = useMemo(() => {
@@ -49,15 +73,29 @@ export default function OfferPanel(p: ReportProps) {
     }
   }, [extract, gazetteer, grid, stats.depthGrowth, hazardSource, calibrate, batch, baseBuildings, portfolio]);
   const checks = useMemo(() => (extract && doc ? verifyFacts(extract.offer, doc.red.text) : []), [extract, doc]);
-  const done = !doc ? 0 : !extract ? 1 : typeof run === "string" ? 2 : 7;
+
+  // a clock for the AI step, and the engine stages revealed one at a time after it answers
+  useEffect(() => {
+    if (busy !== "ai") return;
+    const id = setInterval(() => setTick(Date.now()), 500);
+    return () => clearInterval(id);
+  }, [busy]);
+  useEffect(() => {
+    if (revealed >= PIPE) return;
+    const id = setTimeout(() => setRevealed((r) => r + 1), 320);
+    return () => clearTimeout(id);
+  }, [revealed]);
 
   async function onFile(f: File) {
     setErr(null);
     setExtract(null);
     setDecided(null);
     setBusy("read");
+    setProgress(null);
+    setAiSeconds(null);
+    setPages(null);
     try {
-      const file = await readDocument(f);
+      const file = await readDocument(f, (done, total) => setPages({ done, total }));
       setDoc({ file, red: redactPersonal(file.text) });
     } catch (e) {
       setDoc(null);
@@ -67,16 +105,37 @@ export default function OfferPanel(p: ReportProps) {
     }
   }
 
+  async function trySample(name: string) {
+    try {
+      const res = await fetch(`/samples/${name}`);
+      if (!res.ok) throw new Error(`Could not load the sample (HTTP ${res.status})`);
+      await onFile(new File([await res.blob()], name, { type: "application/pdf" }));
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : String(e));
+    }
+  }
+
   async function analyse() {
     if (!doc) return;
     setBusy("ai");
     setErr(null);
     setDecided(null);
+    setExtract(null);
+    setAiSeconds(null);
+    setProgress({ section: "sending" });
+    const t0 = Date.now();
+    setStartedAt(t0);
+    setTick(t0);
     try {
       const res = await fetch("/api/offer", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ text: doc.red.text, gazetteer: gazetteer.map((g) => g.name) }) });
-      const data = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
-      if (!res.ok) throw new Error((data as { error?: string }).error ?? `HTTP ${res.status}`);
-      setExtract(data as ExtractResponse);
+      if (!res.ok || !res.body || !res.headers.get("content-type")?.includes("ndjson")) {
+        const data = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
+        throw new Error((data as { error?: string }).error ?? `HTTP ${res.status}`);
+      }
+      const result = await readStream(res, setProgress);
+      setAiSeconds((Date.now() - t0) / 1000);
+      setRevealed(0);
+      setExtract(result);
     } catch (e) {
       setErr(e instanceof Error ? e.message : String(e));
     } finally {
@@ -102,6 +161,14 @@ export default function OfferPanel(p: ReportProps) {
             </span>
             <span className="text-[13px] text-slate-200">{busy === "read" ? "Reading…" : "Drop a broker offer, or choose a file"}</span>
             <span className="text-[11px] text-slate-500">.pdf · .docx · .doc · .txt</span>
+            <span className="mt-2 flex flex-wrap justify-center gap-1.5 text-[11px]" onClick={(e) => e.preventDefault()}>
+              <span className="text-slate-500">or try a sample:</span>
+              {SAMPLES.map((x) => (
+                <button key={x.file} type="button" disabled={busy !== null} onClick={() => void trySample(x.file)} className={`rounded-full px-2 py-0.5 ring-1 ${x.tone} disabled:opacity-50`}>
+                  {x.label}
+                </button>
+              ))}
+            </span>
             <input
               type="file"
               accept=".pdf,.docx,.doc,.txt,.md,.csv,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/msword"
@@ -130,20 +197,29 @@ export default function OfferPanel(p: ReportProps) {
                 </div>
                 {showText && <pre className="scroll-thin max-h-40 overflow-auto whitespace-pre-wrap rounded-lg bg-black/30 p-2 text-[11px] text-slate-400">{doc.red.text}</pre>}
                 <button onClick={analyse} disabled={busy !== null} className="w-full rounded-lg bg-brand px-3 py-2 text-[13px] font-semibold text-on-brand disabled:opacity-60">
-                  {busy === "ai" ? "Claude is reading the document… (about 30 s)" : extract ? "Read it again" : "Run the CAT model on this offer"}
+                  {busy === "ai" ? "Risk Forge AI is reading the document…" : extract ? "Read it again" : "Run the CAT model on this offer"}
                 </button>
               </>
             ) : (
               <div className="text-[12px] text-slate-500">Personal names, phone numbers and emails are removed in your browser before the AI sees the text. Nothing is stored.</div>
             )}
-            <Stepper done={done} />
+            <Activity
+              doc={doc}
+              reading={busy === "read" ? pages ?? { done: 0, total: 0 } : null}
+              ai={busy === "ai" ? { progress, seconds: Math.max(0, Math.round((tick - startedAt) / 1000)) } : null}
+              aiSeconds={aiSeconds}
+              extract={extract}
+              run={run}
+              checks={checks}
+              revealed={revealed}
+            />
           </div>
         </div>
         {err && <div className="mt-2 rounded-lg bg-rose-500/15 px-3 py-2 text-[13px] text-rose-200">{err}</div>}
         {typeof run === "string" && <div className="mt-2 rounded-lg bg-rose-500/15 px-3 py-2 text-[13px] text-rose-200">{run}</div>}
       </Card>
 
-      {run && typeof run !== "string" && extract && (
+      {run && typeof run !== "string" && extract && revealed >= PIPE && (
         <>
           <DecisionBanner
             run={run}
@@ -158,7 +234,7 @@ export default function OfferPanel(p: ReportProps) {
           />
           <div className="grid gap-4 lg:grid-cols-2">
             <Card title="1 · Extraction" hint={`${checks.filter((c) => c.found && c.matches).length} of ${checks.length} figures quoted from the document`}>
-              <Extraction run={run} checks={checks} offer={extract.offer} model={extract.model} tokens={extract.usage.input + extract.usage.output} />
+              <Extraction run={run} checks={checks} offer={extract.offer} tokens={extract.usage.input + extract.usage.output} />
             </Card>
             <Card title="2 · Hazard" hint="flood depth at the site, by rarity">
               <HazardChart run={run} />
@@ -201,16 +277,164 @@ export default function OfferPanel(p: ReportProps) {
   );
 }
 
-function Stepper({ done }: { done: number }) {
+/** read the NDJSON stream from /api/offer: progress lines while the model writes, then the result */
+async function readStream(res: Response, onProgress: (p: Progress) => void): Promise<ExtractResponse> {
+  const reader = res.body!.pipeThrough(new TextDecoderStream()).getReader();
+  let buf = "";
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (value) buf += value;
+    let i: number;
+    while ((i = buf.indexOf("\n")) >= 0) {
+      const line = buf.slice(0, i).trim();
+      buf = buf.slice(i + 1);
+      if (!line) continue;
+      const msg = JSON.parse(line) as { type: string; error?: string } & Progress & ExtractResponse;
+      if (msg.type === "progress") onProgress(msg);
+      else if (msg.type === "result") return msg;
+      else if (msg.type === "error") throw new Error(msg.error ?? "The AI request failed");
+    }
+    if (done) break;
+  }
+  throw new Error("The connection closed before the AI finished; try again.");
+}
+
+const SECTION_LABEL: Record<string, string> = {
+  sending: "sending the redacted text",
+  start: "starting to read",
+  thinking: "thinking about the document",
+  insured: "finding the insured",
+  site: "locating the site",
+  sum_insured_kes: "reading the sum insured",
+  buildings: "listing the buildings",
+  contents: "listing stock and machinery",
+  flood_history: "reading the flood history",
+  terms: "reading the policy terms",
+  conditions: "reading the conditions",
+  facts: "quoting the source of every figure",
+  data_gaps: "noting what the document leaves out",
+  warnings: "noting anything odd",
+};
+
+type RowState = "done" | "active" | "todo" | "error";
+interface Row {
+  label: string;
+  detail?: React.ReactNode;
+  state: RowState;
+}
+
+/** a running log of what the model is doing: reading, redacting, the AI's extraction live, then each engine stage */
+function Activity({
+  doc,
+  reading,
+  ai,
+  aiSeconds,
+  extract,
+  run,
+  checks,
+  revealed,
+}: {
+  doc: { file: DocText; red: Redaction } | null;
+  reading: { done: number; total: number } | null;
+  ai: { progress: Progress | null; seconds: number } | null;
+  aiSeconds: number | null;
+  extract: ExtractResponse | null;
+  run: OfferRun | string | null;
+  checks: FactCheck[];
+  revealed: number;
+}) {
+  const rows: Row[] = [];
+  // 1-2 · the document, on this device
+  if (reading) rows.push({ label: "Reading the document", detail: reading.total ? `page ${reading.done} of ${reading.total}` : "opening…", state: "active" });
+  else if (doc)
+    rows.push({ label: `Read ${doc.file.pages ? `${doc.file.pages} pages` : doc.file.kind.toUpperCase()}`, detail: `${doc.file.text.length.toLocaleString("en-KE")} characters, on this device`, state: "done" });
+  else rows.push({ label: "Read the document", state: "todo" });
+  rows.push(
+    doc
+      ? { label: "Removed personal details", detail: `${doc.red.counts.names} names · ${doc.red.counts.phones} phones · ${doc.red.counts.emails} emails`, state: "done" }
+      : { label: "Remove personal details", state: "todo" },
+  );
+
+  // 3 · the AI, live
+  if (ai) {
+    const p = ai.progress;
+    rows.push({
+      label: `Risk Forge AI is ${SECTION_LABEL[p?.section ?? "sending"] ?? "reading"} · ${ai.seconds} s`,
+      detail: p && (
+        <span className="flex flex-wrap gap-1">
+          {p.insured && <Tag>insured ✓</Tag>}
+          {p.place && <Tag>site: {p.place}</Tag>}
+          {!!p.buildings && <Tag>{p.buildings} buildings</Tag>}
+          {!!p.contents && <Tag>{p.contents} contents</Tag>}
+          {!!p.floods && <Tag>{p.floods} past floods</Tag>}
+          {p.terms && <Tag>terms ✓</Tag>}
+          {!!p.facts && <Tag>{p.facts} figures quoted</Tag>}
+        </span>
+      ),
+      state: "active",
+    });
+  } else if (extract) {
+    const x = extract.offer;
+    rows.push({
+      label: `Risk Forge AI extracted the risk${aiSeconds ? ` · ${Math.round(aiSeconds)} s` : ""}`,
+      detail: `${x.buildings.length} buildings · ${x.contents.length} contents · ${x.flood_history.length} past floods · ${x.facts.length} figures quoted`,
+      state: "done",
+    });
+  } else rows.push({ label: "Risk Forge AI extracts the risk", state: "todo" });
+
+  // 4-9 · the engine, one stage at a time
+  const r = typeof run === "object" ? run : null;
+  const verified = checks.filter((c) => c.found && c.matches).length;
+  const stages: [string, React.ReactNode][] = r
+    ? [
+        ["Checked every figure against the document", `${verified} of ${checks.length} found word for word`],
+        [
+          "Hazard",
+          r.hazard.source === "site"
+            ? `JRC map is dry here, so depths come from the site's ${r.hazard.events.length} reported floods · ${r.hazard.site?.[100]?.toFixed(2) ?? "–"} m at 1-in-100`
+            : `JRC map · ${r.hazard.jrc[100].toFixed(2)} m of water at 1-in-100`,
+        ],
+        ["Vulnerability", r.vuln.applied ? `damage curves scaled ×${r.vuln.factor.toFixed(2)} to ${r.vuln.events.length} claims${r.vuln.r2 !== null ? ` (fit R² ${r.vuln.r2.toFixed(2)})` : ""}` : "standard damage curves for each building class"],
+        ["Exposure", `${r.buildings.length} buildings · ${kes(r.financial.value)} insured`],
+        ["Financial engine", `average loss ${kes(r.financial.aal.gu)} a year · Kenya Re's technical premium ${kes(r.decision.technical)}`],
+        ["Decision", r.decision.verdict],
+      ]
+    : [];
+  const names = ["Check every figure", "Hazard", "Vulnerability", "Exposure", "Financial engine", "Decision"];
+  names.forEach((n, i) => {
+    if (typeof run === "string" && i === 1) rows.push({ label: n, detail: run, state: "error" });
+    else if (r && i < revealed) rows.push({ label: stages[i][0], detail: stages[i][1], state: "done" });
+    else if (r && i === revealed) rows.push({ label: `${n}…`, state: "active" });
+    else rows.push({ label: n, state: "todo" });
+  });
+
   return (
-    <ol className="flex flex-wrap gap-1 text-[10px]">
-      {STEPS.map((s, i) => (
-        <li key={s} className={`rounded-full px-2 py-0.5 ${i < done ? "bg-emerald-400/15 text-emerald-200" : "bg-white/[0.04] text-slate-500"}`}>
-          {i < done ? "✓" : i + 1} {s}
+    <ol className="space-y-1 rounded-xl bg-white/[0.03] p-2.5 text-[12px]" aria-live="polite">
+      {rows.map((row, i) => (
+        <li key={i} className="flex gap-2">
+          <span className="mt-[1px] w-4 shrink-0 text-center">
+            {row.state === "done" ? (
+              <span className="text-emerald-300">✓</span>
+            ) : row.state === "active" ? (
+              <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-brand-300 border-t-transparent align-[-2px]" />
+            ) : row.state === "error" ? (
+              <span className="text-rose-300">✗</span>
+            ) : (
+              <span className="text-slate-600">·</span>
+            )}
+          </span>
+          <span className="min-w-0">
+            <span className={row.state === "todo" ? "text-slate-500" : row.state === "active" ? "text-slate-50" : "text-slate-200"}>{row.label}</span>
+            {row.detail && <span className="block text-[11px] text-slate-400">{row.detail}</span>}
+          </span>
         </li>
       ))}
     </ol>
   );
+}
+
+function Tag({ children }: { children: React.ReactNode }) {
+  return <span className="rounded-full bg-brand-400/15 px-2 py-[1px] text-[11px] text-brand-100">{children}</span>;
 }
 
 function DecisionBanner({ run, checks, decided, onApprove, onDecline, onReport }: { run: OfferRun; checks: FactCheck[]; decided: "approved" | "declined" | null; onApprove: () => void; onDecline: () => void; onReport: () => void }) {
@@ -293,7 +517,7 @@ function fieldLabel(f: string, x: OfferExtract): string {
 }
 const fmtVal = (f: string, v: number) => (/kes|premium|limit|deductible|value|loss|sum/i.test(f) && v >= 1000 ? kes(v) : v.toLocaleString("en-KE", { maximumFractionDigits: 4 }));
 
-function Extraction({ run, checks, offer, model, tokens }: { run: OfferRun; checks: FactCheck[]; offer: OfferExtract; model: string; tokens: number }) {
+function Extraction({ run, checks, offer, tokens }: { run: OfferRun; checks: FactCheck[]; offer: OfferExtract; tokens: number }) {
   return (
     <div className="space-y-2">
       <div className="scroll-thin max-h-48 overflow-y-auto">
@@ -328,7 +552,7 @@ function Extraction({ run, checks, offer, model, tokens }: { run: OfferRun; chec
       )}
       <div className="flex items-center justify-between text-[11px] text-slate-500">
         <span>
-          {model} · {tokens.toLocaleString("en-KE")} tokens · hover a row for its quote
+          Risk Forge AI · {tokens.toLocaleString("en-KE")} tokens · hover a row for its quote
         </span>
         <button onClick={() => download(`riskforge_${run.id}_exposure.csv`, offerCsv(run))} className="rounded-md bg-white/[0.06] px-2 py-1 text-slate-300 hover:bg-white/10">
           CSV ({run.rows.length} rows)
@@ -528,7 +752,7 @@ function offerReport(run: OfferRun, checks: FactCheck[], x: ExtractResponse): st
   const row = (r: number) => `| 1-in-${r} | ${Number(run.buildings[0]?.[`d${r}`] ?? 0).toFixed(2)} m | ${kes(f.byRp[r].gu)} | ${kes(f.byRp[r].gross)} | ${kes(f.byRp[r].reinsurer)} |`;
   return `# ${d.verdict}: ${run.insured}
 
-Risk Forge CAT model run on the broker's offer (${x.offer.reference ?? "no reference"}). Synthetic hackathon test document; figures extracted by ${x.model} and checked against the text (${checks.filter((c) => c.found && c.matches).length} of ${checks.length} verified).
+Risk Forge CAT model run on the broker's offer (${x.offer.reference ?? "no reference"}). Synthetic hackathon test document; figures extracted by Risk Forge AI and checked against the text (${checks.filter((c) => c.found && c.matches).length} of ${checks.length} verified).
 
 ## Why
 ${d.reasons.map((r) => `- ${r.text}`).join("\n")}

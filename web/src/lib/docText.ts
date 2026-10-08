@@ -17,30 +17,38 @@ export interface DocText {
 
 export const MAX_DOC_BYTES = 15 * 1024 * 1024;
 
-export async function readDocument(file: File): Promise<DocText> {
+/** `onPage(done, total)` reports progress through a PDF */
+export async function readDocument(file: File, onPage?: (done: number, total: number) => void): Promise<DocText> {
   if (file.size > MAX_DOC_BYTES) throw new Error("File is over 15 MB");
   const ext = file.name.toLowerCase().split(".").pop() ?? "";
-  if (ext === "pdf" || file.type === "application/pdf") return readPdf(file);
+  if (ext === "pdf" || file.type === "application/pdf") return readPdf(file, onPage);
   if (ext === "docx") return { name: file.name, kind: "docx", pages: null, text: readDocx(new Uint8Array(await file.arrayBuffer())) };
   if (ext === "doc") return { name: file.name, kind: "doc", pages: null, text: readLegacyDoc(new Uint8Array(await file.arrayBuffer())) };
   return { name: file.name, kind: "text", pages: null, text: await file.text() };
 }
 
-async function readPdf(file: File): Promise<DocText> {
+async function readPdf(file: File, onPage?: (done: number, total: number) => void): Promise<DocText> {
   const [pdfjs, worker] = await Promise.all([import("pdfjs-dist"), import("pdfjs-dist/build/pdf.worker.min.mjs?url")]);
   pdfjs.GlobalWorkerOptions.workerSrc = worker.default;
   const pdf = await pdfjs.getDocument({ data: new Uint8Array(await file.arrayBuffer()) }).promise;
   const pages: string[] = [];
   for (let i = 1; i <= pdf.numPages; i++) {
+    onPage?.(i, pdf.numPages);
     const content = await (await pdf.getPage(i)).getTextContent();
     let line = "";
+    let end: number | null = null;
     const lines: string[] = [];
     for (const item of content.items) {
       if (!("str" in item)) continue;
+      // runs that sit apart on one line (table cells, tab stops) get a space, so "Hall" + "KES 9,000" never fuse
+      const x = item.transform[4];
+      if (end !== null && x - end > 1.5 && line && !/\s$/.test(line) && !/^\s/.test(item.str)) line += " ";
       line += item.str;
+      end = x + item.width;
       if (item.hasEOL) {
         lines.push(line);
         line = "";
+        end = null;
       }
     }
     if (line) lines.push(line);
@@ -118,6 +126,6 @@ export function redactPersonal(raw: string): Redaction {
     const re = new RegExp(`\\b${n.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "g");
     text = text.replace(re, () => (nameHits++, "[name]"));
   }
-  text = text.replace(/\b(?:Mr|Mrs|Ms|Miss|Dr)\.?\s+\[name\]/g, "[name]");
+  text = text.replace(/\b(?:Mr|Mrs|Ms|Miss|Dr|Eng|Prof)\.?\s+\[name\]/g, "[name]");
   return { text, counts: { emails, phones, names: nameHits } };
 }

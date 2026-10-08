@@ -1,5 +1,5 @@
 /**
- * Offer document -> CAT model run. Claude reads the broker's document (api/offer.ts); everything below is deterministic:
+ * Offer document -> CAT model run. Risk Forge AI reads the broker's document (api/offer.ts); everything below is deterministic:
  *   0. accuracy  every extracted number must come with a quote that is found in the document
  *   1. exposure  buildings and contents become exposure rows (CSV in the shape of exposure_nzoia_synthetic.csv)
  *   2. hazard    JRC depth at the site; if the JRC map is dry there but the document reports floods, a site curve
@@ -183,7 +183,7 @@ export interface OfferRun {
 }
 
 const BBOX = { w: 33.7, s: -0.3, e: 35.4, n: 1.3 }; // the JRC hazard grid
-const kes = (n: number) => (n >= 1e9 ? `KES ${(n / 1e9).toFixed(2)} bn` : n >= 1e6 ? `KES ${(n / 1e6).toFixed(n >= 1e7 ? 1 : 2)}M` : `KES ${Math.round(n / 1e3)}K`);
+const kes = (n: number) => (n >= 1e9 ? `KES ${(n / 1e9).toFixed(2)} bn` : n >= 1e6 ? `KES ${(n / 1e6).toFixed(n >= 1e7 ? 1 : 2)}M` : n >= 1e3 ? `KES ${Math.round(n / 1e3)}K` : `KES ${Math.round(n)}`);
 
 export function runOffer(
   x: OfferExtract,
@@ -332,7 +332,11 @@ export function runOffer(
     });
   }
   reasons.push({ text: `1-in-100 flood costs Kenya Re ${kes(financial.byRp[100].reinsurer)}; 1-in-500 ${kes(financial.byRp[500].reinsurer)}`, tone: "warn" });
-  if (experience.events) reasons.push({ text: `${experience.events} floods in ${years ?? "?"} years, ${kes(allClaims)} claimed${experience.aal ? ` (${kes(experience.aal)} a year)` : ""}`, tone: experience.events >= 3 ? "bad" : "warn" });
+  if (experience.events)
+    reasons.push({
+      text: `${experience.events} flood${experience.events === 1 ? "" : "s"} in ${years ?? "?"} years, ${allClaims > 0 ? `${kes(allClaims)} claimed${experience.aal ? ` (${kes(experience.aal)} a year)` : ""}` : "no claims paid"}`,
+      tone: experience.events >= 3 ? "bad" : allClaims > 0 ? "warn" : "good",
+    });
   if (source === "site") reasons.push({ text: `JRC flood map is dry at this site; depths come from the document's own flood history (${hazard.events.map((e) => e.depth.toFixed(1)).join(", ")} m)`, tone: "warn" });
   if (applied) reasons.push({ text: `Generic damage curves ×${factor.toFixed(2)} after fitting the site's ${claimEvents.length} past claims${vuln.r2 !== null ? ` (R² ${vuln.r2.toFixed(2)})` : ""}`, tone: "warn" });
   // accumulation: what the book already holds within 5 km of the site

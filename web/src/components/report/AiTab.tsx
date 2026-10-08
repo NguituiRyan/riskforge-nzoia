@@ -74,7 +74,7 @@ export default function AiTab(p: ReportProps) {
   const batch = 1 + Math.max(0, ...aiRows.map((b) => Number(b.batch) || 0));
   const [brief, setBrief] = useState<{ b: Briefing; summary: unknown; model: string } | null>(null);
 
-  // turn Claude's rows into buildings: geocode on the gazetteer, fill documented typical values, attach hazard
+  // turn the AI's rows into buildings: geocode on the gazetteer, fill documented typical values, attach hazard
   const preview = useMemo(() => {
     if (!parsed) return [];
     const out: { row: ParsedRow; buildings: BuildingProps[]; areaNote: string | null; valueNote: string | null; valueFlag: string | null; range: { min: number; max: number } | null; approx: boolean }[] = [];
@@ -182,7 +182,7 @@ export default function AiTab(p: ReportProps) {
   return (
     <div className="space-y-4">
       <div className="rounded-xl border border-cyan-300/25 bg-cyan-300/[0.05] px-4 py-2.5 text-[12px] leading-snug text-cyan-50/90">
-        Claude reads; the Risk Forge engine computes every number; the underwriter decides. Personal details are removed before Claude sees a document.
+        Risk Forge AI reads; the Risk Forge engine computes every number; the underwriter decides. Personal details are removed before Risk Forge AI sees a document.
       </div>
       {err && <div className="rounded-lg bg-rose-500/15 px-3 py-2 text-[13px] text-rose-200">{err}</div>}
 
@@ -219,17 +219,17 @@ export default function AiTab(p: ReportProps) {
                 />
               </label>
               <button onClick={ingest} disabled={!text.trim() || busy !== null} className="flex-1 rounded-lg bg-brand px-3 py-1.5 text-[13px] font-semibold text-on-brand disabled:opacity-50">
-                {busy === "ingest" ? "Claude is reading…" : "Read with Claude"}
+                {busy === "ingest" ? "Risk Forge AI is reading…" : "Read with Risk Forge AI"}
               </button>
             </div>
             <p className="mt-2 text-[11px] leading-snug text-slate-500">
-              Claude returns rows in the shape of <code>exposure_nzoia_synthetic.csv</code>. Places come from our gazetteer of {gazetteer.length} towns, villages, wards and sub-counties (with other spellings); an unlisted village is placed at its sub-county with lower confidence, never dropped silently. Missing areas and values are filled with documented typical values and flagged.
+              Risk Forge AI returns rows in the shape of <code>exposure_nzoia_synthetic.csv</code>. Places come from our gazetteer of {gazetteer.length} towns, villages, wards and sub-counties (with other spellings); an unlisted village is placed at its sub-county with lower confidence, never dropped silently. Missing areas and values are filled with documented typical values and flagged.
             </p>
           </div>
 
           <div className="lg:col-span-3">
             {!parsed ? (
-              <div className="grid h-full place-items-center rounded-xl border border-dashed border-white/10 p-6 text-center text-[13px] text-slate-500">Parsed rows, Claude's assumptions and the effect on losses appear here before anything is added.</div>
+              <div className="grid h-full place-items-center rounded-xl border border-dashed border-white/10 p-6 text-center text-[13px] text-slate-500">Parsed rows, Risk Forge AI's assumptions and the effect on losses appear here before anything is added.</div>
             ) : (
               <div className="space-y-3">
                 <div className="overflow-x-auto">
@@ -317,7 +317,7 @@ export default function AiTab(p: ReportProps) {
                 })()}
                 {parsed.unclear.length > 0 && (
                   <div className="rounded-lg bg-amber-300/[0.08] px-3 py-2 text-[12px] text-amber-100">
-                    <b>Claude flagged:</b>
+                    <b>Risk Forge AI flagged:</b>
                     <ul className="mt-1 list-disc pl-4">
                       {parsed.unclear.map((u, i) => (
                         <li key={i}>{u}</li>
@@ -349,7 +349,7 @@ export default function AiTab(p: ReportProps) {
                     Discard
                   </button>
                   <span className="text-[11px] text-slate-500">
-                    {parsed.model} · {parsed.usage.input + parsed.usage.output} tokens
+                    Risk Forge AI · {parsed.usage.input + parsed.usage.output} tokens
                   </span>
                 </div>
               </div>
@@ -376,9 +376,9 @@ export default function AiTab(p: ReportProps) {
       <Card title="Underwriting briefing" hint={<span>every figure checked against the engine · <Badge kind="ai" /></span>}>
         <div className="flex flex-wrap items-center gap-3">
           <button onClick={writeBriefing} disabled={busy !== null} className="rounded-lg bg-brand px-4 py-2 text-[13px] font-semibold text-on-brand disabled:opacity-50">
-            {busy === "brief" ? "Claude is writing…" : brief ? "Rewrite briefing" : "Write briefing for this book"}
+            {busy === "brief" ? "Risk Forge AI is writing…" : brief ? "Rewrite briefing" : "Write briefing for this book"}
           </button>
-          <span className="text-[12px] text-slate-500">Claude sees only aggregated numbers from the engine (totals, return-period losses, top 5 risks, accumulation).</span>
+          <span className="text-[12px] text-slate-500">Risk Forge AI sees only aggregated numbers from the engine (totals, return-period losses, top 5 risks, accumulation).</span>
         </div>
         {brief && <BriefingView brief={brief} />}
       </Card>
@@ -435,7 +435,7 @@ function BriefingView({ brief }: { brief: { b: Briefing; summary: unknown; model
             ))}
           </tbody>
         </table>
-        <div className="mt-2 text-[10px] text-slate-500">{brief.model}</div>
+        <div className="mt-2 text-[10px] text-slate-500">Risk Forge AI</div>
       </div>
     </div>
   );

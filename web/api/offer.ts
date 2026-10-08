@@ -4,6 +4,12 @@
  * into one structured risk: site, buildings, contents, flood history and policy terms - every number with the exact
  * quote it came from, so the browser can check each figure against the document before the engine runs.
  * The engine (in the browser) then runs hazard -> vulnerability -> exposure -> financial terms on that risk.
+ *
+ * The answer streams back as NDJSON, one JSON object per line, so the page can show what the AI is doing:
+ *   {"type":"progress", "section":"buildings", "buildings":3, ...}   while the model writes
+ *   {"type":"result", "offer":{...}, "model":"...", "usage":{...}}  at the end
+ *   {"type":"error", "error":"..."}                                 if it fails after the stream started
+ * Problems found before the model is called (bad input, rate limit, no key) are ordinary JSON errors.
  */
 import Anthropic from "@anthropic-ai/sdk";
 import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
@@ -116,6 +122,34 @@ sum_insured_kes: the total property sum insured for the site.
 facts: for every number you put anywhere above, add {field, value, quote} where quote is copied exactly, character for character, from the document and contains the number. If you cannot quote it, do not use the number.
 Leave anything not stated as null and list it in data_gaps. Never invent figures. Do not output people's names or contact details.`;
 
+/** what the model has written so far, read from the partial JSON (fields arrive in schema order) */
+const SECTIONS = ["insured", "site", "sum_insured_kes", "buildings", "contents", "flood_history", "terms", "conditions", "facts", "data_gaps", "warnings"] as const;
+const count = (text: string, key: string) => text.split(`"${key}"`).length - 1;
+function progressOf(text: string) {
+  let section: string = "start";
+  for (const k of SECTIONS) if (text.includes(`"${k}"`)) section = k;
+  const insured = text.match(/"insured"\s*:\s*"([^"]{1,120})"/)?.[1] ?? null;
+  const place = text.match(/"place"\s*:\s*"([^"]{1,80})"/)?.[1] ?? null;
+  return {
+    section,
+    insured,
+    place,
+    buildings: count(text, "housing_class"),
+    contents: count(text, "kind"),
+    floods: count(text, "depth_m"),
+    terms: text.includes('"flood_premium_kes"'),
+    facts: count(text, "quote"),
+    chars: text.length,
+  };
+}
+
+function aiError(error: unknown): { error: string; status: number } {
+  if (error instanceof Anthropic.RateLimitError) return { error: "AI rate limited - try again in a minute", status: 429 };
+  if (error instanceof Anthropic.AuthenticationError) return { error: "The AI key on this deployment is invalid", status: 503 };
+  if (error instanceof Anthropic.APIError) return { error: `AI service error (${error.status}): ${String(error.message).slice(0, 300)}`, status: 502 };
+  return { error: "The AI request failed; try again.", status: 500 };
+}
+
 export async function POST(request: Request): Promise<Response> {
   const limited = await rateLimit(request, "offer", 20);
   if (limited) return limited;
@@ -128,23 +162,48 @@ export async function POST(request: Request): Promise<Response> {
   if (!process.env.ANTHROPIC_API_KEY) return Response.json({ error: "AI is not configured on this deployment (ANTHROPIC_API_KEY missing)" }, { status: 503 });
 
   const client = new Anthropic();
-  try {
-    const response = await client.messages.parse({
-      model: MODEL,
-      max_tokens: 12000,
-      system: SYSTEM,
-      output_config: { effort: "low", format: zodOutputFormat(Offer) },
-      messages: [{ role: "user", content: `Gazetteer: ${places.join(", ")}\n\n<document>\n${text}\n</document>` }],
-    });
-    if (response.stop_reason === "refusal") return Response.json({ error: "The model declined this document." }, { status: 422 });
-    if (!response.parsed_output) return Response.json({ error: "The model's answer did not match the offer schema; try again." }, { status: 502 });
-    const offer = normalise(response.parsed_output);
-    if (!places.includes(offer.site.place)) offer.site.place = "unknown";
-    return Response.json({ offer, model: response.model, usage: { input: response.usage.input_tokens, output: response.usage.output_tokens } });
-  } catch (error) {
-    if (error instanceof Anthropic.RateLimitError) return Response.json({ error: "AI rate limited - try again in a minute" }, { status: 429 });
-    if (error instanceof Anthropic.AuthenticationError) return Response.json({ error: "The AI key on this deployment is invalid" }, { status: 503 });
-    if (error instanceof Anthropic.APIError) return Response.json({ error: `AI service error (${error.status}): ${String(error.message).slice(0, 300)}` }, { status: 502 });
-    throw error;
-  }
+  const encoder = new TextEncoder();
+  const body = new ReadableStream<Uint8Array>({
+    async start(controller) {
+      const send = (o: object) => controller.enqueue(encoder.encode(JSON.stringify(o) + "\n"));
+      send({ type: "progress", section: "start", chars: 0 });
+      let last = "";
+      let lastAt = 0;
+      try {
+        const stream = client.messages.stream({
+          model: MODEL,
+          max_tokens: 12000,
+          system: SYSTEM,
+          output_config: { effort: "low", format: zodOutputFormat(Offer) },
+          messages: [{ role: "user", content: `Gazetteer: ${places.join(", ")}\n\n<document>\n${text}\n</document>` }],
+        });
+        stream.on("streamEvent", (e) => {
+          if (e.type === "content_block_start" && e.content_block.type === "thinking") send({ type: "progress", section: "thinking", chars: 0 });
+        });
+        stream.on("text", (_delta, snapshot) => {
+          // at most 4 lines a second: when something countable changes, else a heartbeat every 1.5 s
+          const now = Date.now();
+          if (now - lastAt < 250) return;
+          const p = progressOf(snapshot);
+          const key = JSON.stringify({ ...p, chars: 0 });
+          if (key === last && now - lastAt < 1500) return;
+          last = key;
+          lastAt = now;
+          send({ type: "progress", ...p });
+        });
+        const response = await stream.finalMessage();
+        if (response.stop_reason === "refusal") send({ type: "error", error: "The model declined this document." });
+        else if (!response.parsed_output) send({ type: "error", error: "The model's answer did not match the offer schema; try again." });
+        else {
+          const offer = normalise(response.parsed_output as Raw);
+          if (!places.includes(offer.site.place)) offer.site.place = "unknown";
+          send({ type: "result", offer, model: response.model, usage: { input: response.usage.input_tokens, output: response.usage.output_tokens } });
+        }
+      } catch (error) {
+        send({ type: "error", ...aiError(error) });
+      }
+      controller.close();
+    },
+  });
+  return new Response(body, { headers: { "content-type": "application/x-ndjson; charset=utf-8", "cache-control": "no-store", "x-accel-buffering": "no" } });
 }
