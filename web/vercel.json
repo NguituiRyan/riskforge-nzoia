@@ -4,7 +4,16 @@
     "bom1"
   ],
   "functions": {
-    "api/*.ts": {
+    "api/briefing.ts": {
+      "maxDuration": 60
+    },
+    "api/ingest.ts": {
+      "maxDuration": 60
+    },
+    "api/node.ts": {
+      "maxDuration": 60
+    },
+    "api/offer.ts": {
       "maxDuration": 60
     },
     "api/oasis.ts": {
