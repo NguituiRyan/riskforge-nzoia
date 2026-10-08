@@ -11,18 +11,18 @@ water in the tank (cm)  --Wi-Fi, signed-->  /api/node (verifies)  -->  dashboard
 | Part | Use | Notes |
 |---|---|---|
 | ESP32 DevKit (any) | Microcontroller with Wi-Fi | |
-| HC-SR04 ultrasonic | Water level | Minimum range 2 cm and a narrow beam, so it beats the waterproof JSN-SR04T in a small tank |
-| 3 × 1 kΩ resistors | Echo voltage divider (1 kΩ, then 2 kΩ made from two 1 kΩ in series) | The HC-SR04 echo is 5 V; ESP32 pins are 3.3 V. Shops stock 1 kΩ but rarely a single 2 kΩ |
+| AJ-SR04M waterproof ultrasonic (board + probe on a cable) | Water level | Waterproof, but blind closer than about 20 cm, so it mounts higher than an HC-SR04. An HC-SR04 still works: set `SENSOR_AJ_SR04M` to 0 at the top of the sketch |
+| 3 × 1 kΩ resistors | Echo voltage divider (1 kΩ, then 2 kΩ made from two 1 kΩ in series) | On 5 V the sensor's echo is 5 V; ESP32 pins are 3.3 V. Shops stock 1 kΩ but rarely a single 2 kΩ |
 | Breadboard, jumper wires, USB cable | | Use a data cable: some cables only charge |
-| Clear container, 25 cm+ wide, 20–30 cm deep | The "river" | Float a foam disc on the water for a clean echo |
-| Rigid arm or ruler, tape | Holds the sensor 25–30 cm above the tank floor, pointing straight down | Keep it away from the tank walls |
+| Container 30 cm+ wide, 25 cm+ deep (clear storage box or 20 L bucket) | The "river" | The AJ-SR04M's beam is wide: centre the probe, away from the walls. Float a foam disc on the water for a clean echo |
+| Rigid arm, stick or ruler, tape | Holds the probe about **50 cm** above the container floor, pointing straight down | It must stay at least 20 cm above the highest water (the blind zone). The demo pours to about 18 cm |
 | RGB LED + 3 × 220 Ω (optional) | Alert colour on the node | The on-board LED also blinks faster as the river rises |
 | Phone hotspot | The node's internet | Must be **2.4 GHz**: ESP32s can't join 5 GHz. On an iPhone turn on *Maximise Compatibility* |
 | Power bank | Runs the node with no laptop | Lets the node sit on the table on its own |
 | Jug of water, tray, towel | Demo | |
 
 **For the "production node" slide only (not built):**
-- waterproof sensor: radar for ±5 mm over 0.5–10 m, or the JSN-SR04T;
+- sensor: radar for ±5 mm over 0.5–10 m (the demo's AJ-SR04M is already waterproof, but only reaches about 4.5 m);
 - GSM/4G or LoRa instead of Wi-Fi;
 - solar panel and battery;
 - IP67 enclosure;
@@ -34,7 +34,8 @@ Listed prices at Kenyan shops on 7 Oct 2026 (Pixel Electric, Ktechnics, Jumia, N
 
 | Build | Parts | KES |
 |---|---|---|
-| **This demo node** | ESP32 DevKit 900–1,600 · HC-SR04 200–580 · breadboard, jumpers, resistors ~360 · RGB LED 20 | **about 2,000** (range 1,470–3,530) |
+| **This demo node** | ESP32 DevKit 900–1,600 · AJ-SR04M ~1,000–1,300 (the JSN-SR04T's listed price; check the AJ-SR04M at the shop) · breadboard, jumpers, resistors ~360 · RGB LED 20 | **about 2,800** (range 2,280–3,280) |
+| Demo node with an HC-SR04 | as above with an HC-SR04 (200–580) instead | about 2,000 (range 1,470–3,530) |
 | **Field node, 2G** | ESP32 + JSN-SR04T waterproof sensor (1,000–1,300) + SIM800L/C (1,200–1,800) + 10 W panel (1,000–1,900) + CN3791 solar charger (400) + 2 × 18650 cells and holder + IP66 box (800) | **about 5,800** |
 | **Field node, 4G** | as above with an A7672E 4G Cat-1 modem (~6,000) instead of 2G | **about 12,400–14,000** |
 
@@ -45,11 +46,25 @@ Listed prices at Kenyan shops on 7 Oct 2026 (Pixel Electric, Ktechnics, Jumia, N
 ## Wiring
 
 ```text
-HC-SR04 VCC  -> ESP32 VIN (5 V)
-HC-SR04 GND  -> GND
-HC-SR04 TRIG -> GPIO 5
-HC-SR04 ECHO -> 1 kΩ -> GPIO 18 ;  GPIO 18 -> 2 kΩ (two 1 kΩ in series) -> GND
-RGB LED      -> GPIO 25 / 26 / 27 through 220 Ω (common cathode to GND)   [optional]
+AJ-SR04M 5V          -> ESP32 VIN (5 V)
+AJ-SR04M GND         -> GND
+AJ-SR04M Trig (/RX)  -> GPIO 5
+AJ-SR04M Echo (/TX)  -> 1 kΩ -> GPIO 18 ;  GPIO 18 -> 2 kΩ (two 1 kΩ in series) -> GND
+Probe                -> the board's 2-pin socket
+RGB LED              -> GPIO 25 / 26 / 27 through 220 Ω (common cathode to GND)   [optional]
+```
+
+- Leave the board's **R19** pads empty, as shipped. That is mode 1, which talks like an HC-SR04.
+- An HC-SR04 wires up the same way (VCC, GND, TRIG, ECHO).
+
+```text
+  probe ─┬─      ─┐
+         │ dist   │
+  water ~~~~~~~~  │ empty_cm (≈ 50 cm, saved when you calibrate)
+         │ level  │
+  floor ─┴─      ─┘
+
+  level_cm = empty_cm − dist_cm     the first 20 cm under the probe is blind: keep the water below it
 ```
 
 ## Build and flash
@@ -63,9 +78,11 @@ RGB LED      -> GPIO 25 / 26 / 27 through 220 Ω (common cathode to GND)   [opti
 3. Open `riskforge_node.ino` and upload it.
 4. Open the Serial Monitor at **115200** baud. You should see:
    - `{"event":"wifi","ok":true,"ip":"…"}` once it joins the hotspot;
-   - a reading every 500 ms, like `{"node":"RF-NZ-01","seq":12,"dist_cm":20.6,"level_cm":9.4,"ok":true}`;
+   - a reading every 500 ms, like `{"node":"RF-NZ-01","seq":12,"dist_cm":40.6,"level_cm":9.4,"ok":true}`;
    - `{"event":"post","http":200,…}` every 3 s.
 5. Empty the tank, then press **BOOT** (or send `z`). This saves the empty-tank distance, and the level now reads about 0 cm.
+   - The reply's `max_level_cm` is the deepest water the sensor can still see from where it's mounted.
+   - If the reply says `"warn":"mount the sensor higher"`, raise the arm and calibrate again. The demo needs about 20 cm.
 
 ## Run the demo (Wi-Fi)
 
@@ -88,8 +105,10 @@ RGB LED      -> GPIO 25 / 26 / 27 through 220 Ω (common cathode to GND)   [opti
 
 | What you see | Likely cause |
 |---|---|
-| `"ok":false`, `dist_cm` -1 | The sensor gets no echo. Check TRIG/ECHO pins and the divider. Make sure the water is more than 2 cm below the sensor and nothing is in the beam. |
+| `"ok":false`, `dist_cm` -1 | The sensor gets no echo. Check the TRIG/ECHO pins, the divider and the probe plug. Make sure the water is more than 20 cm below the AJ-SR04M (2 cm for an HC-SR04) and nothing is in the beam. On the AJ-SR04M, check R19 is empty. |
+| Level stops rising, or drops, as you pour | The water has reached the blind zone, within 20 cm of the probe. Raise the arm, empty the tank and calibrate again. |
 | Level jumps around | Ripples or the tank wall. Float the foam disc, point the sensor straight down, and centre it. |
+| No 1 kΩ resistors | Power the AJ-SR04M from **3V3** instead of VIN and wire Echo straight to GPIO 18: on 3.3 V its echo is safe. Range is shorter, but plenty for a tank. |
 | `"event":"wifi","ok":false` | Wrong hotspot name or password, or a 5 GHz-only hotspot. |
 | `"skipped":"waiting for network time"` | The hotspot has no internet yet. Readings need a real clock to be signed. |
 | `"http":401` | `NODE_SECRET` in `secrets.h` doesn't match the server's. Copy it again from `.env`. |
