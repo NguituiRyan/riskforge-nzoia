@@ -16,6 +16,7 @@
     Sensor 5V/VCC -> 5V (VIN)      Sensor GND -> GND
     Sensor TRIG (AJ-SR04M: "Trig/RX") -> GPIO 5
     Sensor ECHO (AJ-SR04M: "Echo/TX") -> 1 kΩ -> GPIO 18, and GPIO 18 -> 2 kΩ -> GND   (divider: the sensor's 5 V echo must not reach the 3.3 V pin)
+    No resistors? AJ-SR04M only: power it from 3V3 instead of VIN and wire ECHO straight to GPIO 18 (its echo is then 3.3 V).
     AJ-SR04M: leave the R19 pads empty (mode 1, HC-SR04 compatible). The probe plugs into the board's 2-pin socket.
     Status LED: on-board LED (GPIO 2). Optional RGB LED: R GPIO 25, G GPIO 26, B GPIO 27 (220 Ω each, common cathode).
 
