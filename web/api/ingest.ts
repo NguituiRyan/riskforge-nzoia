@@ -9,7 +9,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
 import { z } from "zod";
-import { rateLimit, readJson } from "./_guard";
+import { rateLimit, readJson } from "./_guard.js";
 
 const MODEL = process.env.ANTHROPIC_MODEL || "claude-sonnet-5-5";
 const MAX_TEXT = 4000;
