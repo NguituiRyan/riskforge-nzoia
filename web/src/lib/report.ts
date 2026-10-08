@@ -2,7 +2,7 @@
 import type { Feature, Polygon } from "geojson";
 import type { BuildingProps, HousingClass, Place, RP } from "./types";
 import { CLASSES, RPS } from "./types";
-import { buildingAt, KEY_RPS, severity, technicalPremium, weightOf, type PortfolioResult, type ScenarioResult } from "./engine";
+import { aalInBook, buildingAt, KEY_RPS, severity, technicalPremium, weightOf, type PortfolioResult, type ScenarioResult } from "./engine";
 import { CLASS_LABEL } from "./format";
 
 const FOOTPRINT_HALF_M = 300;
@@ -55,10 +55,11 @@ export function accumulation(buildings: BuildingProps[], places: Place[]): Accum
   return [...by.values()].sort((x, y) => y.tivInFootprint - x.tivInFootprint);
 }
 
+/** the buildings that add most to the book's AAL (own AAL x weight, so the list adds up to the book's total) */
 export function topRisks(buildings: BuildingProps[], res: PortfolioResult, n = 10) {
   return buildings
     .filter((b) => weightOf(b) > 0) // rows left out of the portfolio (e.g. in the lake) are not its risks
-    .map((b) => ({ b, aal: res.perBuildingAal.get(b.id) ?? 0, at100: buildingAt(b, 100) }))
+    .map((b) => ({ b, aal: aalInBook(res, b), share: aalInBook(res, b) / Math.max(res.aal, 1), at100: buildingAt(b, 100) }))
     .filter((x) => x.aal > 0)
     .sort((x, y) => y.aal - x.aal)
     .slice(0, n);
@@ -80,10 +81,11 @@ export function briefingSummary(
     totals: { buildings: res.count, insuredValue: Math.round(res.tiv) },
     averageAnnualLoss: Math.round(res.aal),
     aalPercentOfValue: Math.round((res.aal / res.tiv) * 10000) / 100,
-    keyLosses: KEY_RPS.map((rp) => ({ returnPeriodYears: rp, loss: Math.round(res.scenarios[rp].loss), buildingsFlooded: res.scenarios[rp].wet })),
+    weighting: "All money figures are weighted portfolio totals. The book is a stratified sample: flood-plain buildings are over-sampled and count for less. topRisks gives each building's contribution to the book (aalInBook), which always sums to at most averageAnnualLoss.",
+    keyLosses: KEY_RPS.map((rp) => ({ returnPeriodYears: rp, loss: Math.round(res.scenarios[rp].loss), buildingsFlooded: Math.round(res.scenarios[rp].wetW), sampleBuildingsFlooded: res.scenarios[rp].wet })),
     technicalPremiumIllustrative: Math.round(prem.gross),
     byClass: CLASSES.map((c) => ({ class: CLASS_LABEL[c], buildings: res.byClass[c].count, insuredValue: Math.round(res.byClass[c].tiv), aal: Math.round(res.byClass[c].aal), loss100: Math.round(res.scenarios[100].byClass[c].loss) })),
-    topRisks: topRisks(buildings, res, 5).map((x) => ({ id: x.b.id, class: CLASS_LABEL[x.b.cls], settlement: x.b.settlement ?? nearestPlace(places, x.b.lon, x.b.lat), insuredValue: Math.round(x.b.tiv), aal: Math.round(x.aal), depthAt100m: Math.round(x.at100.depth * 100) / 100 })),
+    topRisks: topRisks(buildings, res, 5).map((x) => ({ id: x.b.id, class: CLASS_LABEL[x.b.cls], settlement: x.b.settlement ?? nearestPlace(places, x.b.lon, x.b.lat), sampleWeight: Math.round(weightOf(x.b) * 100) / 100, aalInBook: Math.round(x.aal), shareOfBookAalPercent: Math.round(x.share * 1000) / 10, depthAt100m: Math.round(x.at100.depth * 100) / 100 })),
     accumulation: accumulation(buildings, places).slice(0, 5).map((a) => ({ settlement: a.settlement, buildings: a.buildings, insuredValueInFootprint100: Math.round(a.tivInFootprint), loss100: Math.round(a.loss100) })),
     aiAddedBuildings: buildings.filter((b) => b.src === "ai").length,
     liveRiver: live ? { stageMetres: Math.round(live.stage * 100) / 100, returnPeriodYears: live.rp ? Math.round(live.rp * 10) / 10 : null, eventLoss: live.scenario ? Math.round(live.scenario.loss) : 0 } : null,
@@ -117,7 +119,7 @@ const csvCell = (v: unknown) => {
 export function toCsv(buildings: BuildingProps[], res: PortfolioResult): string {
   const head = ["loc_id", "lat", "lon", "housing_class", "floor_area_m2", "cost_per_m2_kes", "tiv_kes", "synthetic", "source", "settlement", "location_flag", "weight_in_totals"];
   for (const rp of RPS) head.push(`hazard_depth_m_rp${rp}`, `hazard_severity_rp${rp}`, `damage_ratio_rp${rp}`, `loss_kes_rp${rp}`);
-  head.push("aal_kes");
+  head.push("aal_kes", "aal_in_book_kes");
   const lines = [head.join(",")];
   for (const b of buildings) {
     const row: unknown[] = [b.id, b.lat, b.lon, b.cls, b.area, b.cost, Math.round(b.tiv), true, b.src === "ai" ? "AI-ingested (Claude), approved by underwriter" : "synthetic", b.settlement ?? "", b.where, weightOf(b)];
@@ -125,7 +127,7 @@ export function toCsv(buildings: BuildingProps[], res: PortfolioResult): string 
       const r = buildingAt(b, rp);
       row.push(r.depth.toFixed(2), severity(r.depth).toFixed(3), r.dr.toFixed(3), Math.round(r.loss));
     }
-    row.push(Math.round(res.perBuildingAal.get(b.id) ?? 0));
+    row.push(Math.round(res.perBuildingAal.get(b.id) ?? 0), Math.round(aalInBook(res, b)));
     lines.push(row.map(csvCell).join(","));
   }
   return lines.join("\n");

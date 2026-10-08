@@ -7,14 +7,14 @@ import { kes } from "../../lib/format";
 const MODELS = ["Moody's RMS (Flood HD)", "Verisk (Inland Flood)", "JBA Global Flood Model", "Fathom Global Flood Map (Swiss Re)", "KatRisk", "CLIMADA (ETH, open)", "Risk Forge"] as const;
 
 const FACTS: [string, string[]][] = [
-  ["Kenya coverage", ["HD flood models in 21 countries; no Kenya model found", "Country models (US, UK, SE Asia…); no Kenya model found", "Every country, Kenya included", "Global maps, Kenya included", "Global flood model", "Global river flood via data API", "Built for the Nzoia basin"]],
+  ["Kenya coverage", ["HD flood models in 21 countries; no Kenya model found", "Country models (US, UK, SE Asia…); no Kenya model found", "Every country, Kenya included", "Global 30 m maps under commercial licence; Kenya is not in the free release", "Global flood model", "Global river flood via data API", "Built for the Nzoia basin"]],
   ["Hazard resolution", ["High-definition (per country)", "Down to ~5 m where LiDAR exists", "30 m", "30 m (FABDEM+)", "30 m hydrology and hydraulics", "~4 km", "~925 m (JRC maps)"]],
   ["Event set", ["e.g. US 50,000 years; Europe 900,000 events", "10,000-year catalogue", "15 million river and surface-water events", "Return-period maps, 1-in-5 to 1-in-1,000", "10,000 to 50,000-year catalogues", "Probabilistic event sets", "6 return-period scenarios; stochastic catalogue next"]],
   ["Flood types", ["Inland flood", "Inland flood", "River and surface water", "River, surface water, coastal; defended and undefended", "River, surface water, coastal", "River flood (+ other hazards)", "River only, undefended"]],
   ["Climate view", ["—", "—", "—", "SSP scenarios for 2030, 2050, 2080", "Climate-conditioned catalogue (SST, El Niño)", "Adaptation cost-benefit", "Illustrative +10% frequency shift"]],
   ["Vulnerability", ["Proprietary, claims-calibrated", "Proprietary, claims-calibrated", "Proprietary", "Hazard only (pair with a loss model)", "Proprietary", "Open impact functions", "JRC Africa curves adapted per class; no claims calibration"]],
-  ["Financial terms", ["Full policy and reinsurance terms", "Full policy and reinsurance terms", "—", "—", "Policy, account, facultative terms", "Basic", "Ground-up loss; terms via Oasis next"]],
-  ["Openness", ["Licensed, closed", "Licensed, closed", "Licensed", "Licensed; free non-commercial country maps", "Licensed", "Open source (GPL)", "Open code, every number traceable"]],
+  ["Financial terms", ["Full policy and reinsurance terms", "Full policy and reinsurance terms", "Via the open Oasis framework", "—", "Policy, account, facultative terms", "Basic", "Ground-up loss; terms via Oasis next"]],
+  ["Openness", ["Licensed, closed", "Licensed, closed", "Licensed", "Licensed; free non-commercial maps for 16 countries, not Kenya", "Licensed", "Open source (GPL)", "Open code, every number traceable"]],
 ];
 
 /** our own 0-3 assessment: Risk Forge vs the best available international model on each dimension */
@@ -38,7 +38,7 @@ const SOURCES: [string, string][] = [
   ["JBA catastrophe models", "https://www.jbarisk.com/products/catastrophe-models/"],
   ["Fathom Global Flood Map", "https://www.fathom.global/product/global-flood-map/"],
   ["Swiss Re acquires Fathom (Dec 2023)", "https://www.swissre.com/press-release/Swiss-Re-acquires-Fathom-a-leader-in-water-risk-intelligence/4af5e0d7-e065-404a-b80d-6f32955f0fbe"],
-  ["Fathom 3.0 country maps (World Bank catalogue)", "https://datacatalog.worldbank.org/search/dataset/0065654"],
+  ["Fathom 3.0 free maps: 16 countries, Kenya not included (World Bank catalogue)", "https://datacatalog.worldbank.org/search/dataset/0065654"],
   ["KatRisk", "https://www.reinsurancene.ws/katrisk-enhances-cat-modelling-engine-and-financial-model/"],
   ["CLIMADA (Aznar-Siguan & Bresch 2019, GMD)", "https://gmd.copernicus.org/articles/12/3085/2019/"],
 ];
@@ -97,7 +97,7 @@ export default function BenchmarkTab({ res }: ReportProps) {
         <Card title="Closing the gap" hint="each step keeps the same pipeline">
           <ol className="list-decimal space-y-1.5 pl-4 text-[12px] leading-snug text-slate-300">
             <li>
-              <b>30 m hazard:</b> swap the six JRC maps for Fathom 3.0 (free country maps for non-commercial use) or a JBA licence - same file shape, no code change.
+              <b>30 m hazard:</b> license JBA or Fathom maps for Kenya (Kenya is not in Fathom's free release) - same file shape, no code change. JBA's model already runs on Oasis, so it can plug in directly.
             </li>
             <li>
               <b>Stochastic catalogue:</b> the Oasis LMF model with 10,000 simulated years from the GloFAS frequency fit (next step).

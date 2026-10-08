@@ -18,6 +18,8 @@ export const TERRAIN_EXAGGERATION = 1.6;
 /** half the side of the symbolic building squares (600 m squares) */
 const FOOTPRINT_HALF_M = 300;
 export const AI_COLOUR = "#22d3ee";
+/** buildings added through the AI intake: bright cyan so they read as new on the map */
+export const NEW_COLOUR = "#67e8f9";
 
 export type CameraPreset = "basin" | "floodplain" | "tour" | "node";
 
@@ -151,7 +153,8 @@ function buildingColour(mode: ColourMode, rp: number, showIssues: boolean): Expr
           "#94a3b8",
         ]
       : ramp(drExpr(depthExprAt(rp)), DAMAGE_STOPS);
-  return showIssues ? ["case", ["!=", ["get", "where"], "KE"], ISSUE_COLOUR, base] : base;
+  const withNew: ExpressionSpecification = mode === "class" ? ["case", ["==", ["get", "src"], "ai"], NEW_COLOUR, base] : base;
+  return showIssues ? ["case", ["!=", ["get", "where"], "KE"], ISSUE_COLOUR, withNew] : withNew;
 }
 
 /** height ~ log(value): KES 45k -> ~300 m, KES 72M -> ~3 km (display only) */
@@ -393,6 +396,74 @@ export default function MapScene(props: Props) {
     map.getSource<maplibregl.GeoJSONSource>("buildings")?.setData(buildings);
     map.getSource<maplibregl.GeoJSONSource>("building-points")?.setData(toPoints(buildings));
   }, [buildings, ready]);
+
+  // ---- AI additions read as new: a NEW tag per approved group, the newest batch grows out of the ground ----
+  const grownBatch = useRef(0);
+  useEffect(() => {
+    const map = ready;
+    if (!map) return;
+    const groups = new Map<string, { n: number; lon: number; lat: number; place: string; batch: number }>();
+    for (const f of buildings.features) {
+      const b = f.properties;
+      if (b.src !== "ai") continue;
+      const batch = Number(b.batch) || 0;
+      const key = `${batch}|${b.settlement}`;
+      const g = groups.get(key) ?? { n: 0, lon: 0, lat: 0, place: String(b.settlement ?? ""), batch };
+      g.n++;
+      g.lon += b.lon;
+      g.lat += b.lat;
+      groups.set(key, g);
+    }
+    const tags = [...groups.values()].map((g) => {
+      const el = document.createElement("div");
+      el.className = "new-tag";
+      el.innerHTML = `<span class="new-tag-pill">NEW</span><span class="new-tag-label">+${g.n} · ${g.place}</span>`;
+      return new maplibregl.Marker({ element: el, anchor: "bottom", offset: [0, -18] }).setLngLat([g.lon / g.n, g.lat / g.n]).addTo(map);
+    });
+
+    // grow the newest batch from the ground once, after the camera has had time to arrive
+    const latest = Math.max(0, ...[...groups.values()].map((g) => g.batch));
+    let raf = 0;
+    let timer = 0;
+    if (latest > grownBatch.current) {
+      grownBatch.current = latest;
+      const isNew: ExpressionSpecification = ["==", ["to-number", ["get", "batch"]], latest];
+      const setGrow = (f: number) => map.setPaintProperty("buildings", "fill-extrusion-height", f >= 1 ? BUILDING_HEIGHT : ["case", isNew, ["*", BUILDING_HEIGHT, f], BUILDING_HEIGHT]);
+      setGrow(0);
+      timer = window.setTimeout(() => {
+        const t0 = performance.now();
+        const step = (now: number) => {
+          const t = Math.min((now - t0) / 1400, 1);
+          const back = 1 + 2.2 * (t - 1) ** 3 + 1.2 * (t - 1) ** 2; // ease-out with a small overshoot
+          setGrow(t >= 1 ? 1 : Math.max(back, 0));
+          if (t < 1) raf = requestAnimationFrame(step);
+        };
+        raf = requestAnimationFrame(step);
+      }, 900);
+    }
+    return () => {
+      tags.forEach((m) => m.remove());
+      window.clearTimeout(timer);
+      cancelAnimationFrame(raf);
+      if (map.style) map.setPaintProperty("buildings", "fill-extrusion-height", BUILDING_HEIGHT);
+    };
+  }, [buildings, ready]);
+
+  // ---- AI rings pulse while there are AI additions ----
+  const hasAi = buildings.features.some((f) => f.properties.src === "ai");
+  useEffect(() => {
+    const map = ready;
+    if (!map || !hasAi) return;
+    let raf = 0;
+    const tick = (ts: number) => {
+      const s = 0.5 + 0.5 * Math.sin(ts / 380);
+      map.setPaintProperty("ai-ring", "circle-stroke-opacity", 0.4 + 0.6 * s);
+      map.setPaintProperty("ai-ring", "circle-radius", ["interpolate", ["linear"], ["zoom"], 6, 5 + 3 * s, 9, 9 + 5 * s, 12, 18 + 9 * s]);
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [hasAi, ready]);
 
   // ---- water level: animate in log(return period) from what is shown to the new value ----
   useEffect(() => {

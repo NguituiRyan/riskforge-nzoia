@@ -3,13 +3,14 @@ import { Badge, Card, Kpi, td, th, tr } from "./ui";
 import type { ReportProps } from "./Report";
 import type { BuildingProps, HousingClass } from "../../lib/types";
 import { RPS } from "../../lib/types";
-import { buildingAt, hazardAt, onWater, runPortfolio } from "../../lib/engine";
+import { buildingAt, depthRangeNear, hazardAt, onWater, runPortfolio } from "../../lib/engine";
 import { briefingSummary, resolvePath } from "../../lib/report";
 import { CLASS_UI, CLASS_LABEL, kes } from "../../lib/format";
 
 interface ParsedRow {
   description: string;
   place: string;
+  place_match: "exact" | "alias" | "nearby" | "area" | "unknown";
   housing_class: HousingClass;
   count: number;
   floor_area_m2: number | null;
@@ -31,6 +32,14 @@ interface Briefing {
   recommendations: string[];
   caveats: string[];
 }
+
+/** cost per m2 range per class from the dataset metadata; a value far outside it is flagged for the underwriter */
+const COST_RANGE: Record<HousingClass, [number, number]> = {
+  informal_iron_sheet: [5_000, 10_000],
+  semi_permanent: [8_000, 16_000],
+  permanent_masonry: [35_000, 65_000],
+  concrete_rcc: [50_000, 85_000],
+};
 
 /** typical floor area (m2) and cost (KES/m2) per class, mid-points of the dataset metadata ranges */
 const TYPICAL: Record<HousingClass, { area: number; cost: number }> = {
@@ -66,7 +75,7 @@ export default function AiTab(p: ReportProps) {
   // turn Claude's rows into buildings: geocode on the gazetteer, fill documented typical values, attach hazard
   const preview = useMemo(() => {
     if (!parsed) return [];
-    const out: { row: ParsedRow; buildings: BuildingProps[]; areaNote: string | null; valueNote: string | null }[] = [];
+    const out: { row: ParsedRow; buildings: BuildingProps[]; areaNote: string | null; valueNote: string | null; valueFlag: string | null; range: { min: number; max: number } | null; approx: boolean }[] = [];
     let n = 0;
     for (const row of parsed.rows) {
       const place = gazetteer.find((g) => g.name === row.place);
@@ -76,13 +85,26 @@ export default function AiTab(p: ReportProps) {
       const cost = Math.round(value / area);
       const tiv = Math.max(5000, Math.round(value / 5000) * 5000);
       const list: BuildingProps[] = [];
+      // a stated value far outside the class's cost per m2 is probably a typo or a total: flag it, don't silently price it
+      const perM2 = value / area;
+      const [lo, hi] = COST_RANGE[row.housing_class];
+      const valueFlag =
+        row.value_kes_per_building !== null && (perM2 > 2 * hi || perM2 < lo / 2)
+          ? `KES ${Math.round(perM2).toLocaleString("en-KE")}/m² is ${perM2 > hi ? `${(perM2 / t.cost).toFixed(0)}× above` : `${(t.cost / perM2).toFixed(0)}× below`} typical for ${CLASS_LABEL[row.housing_class].toLowerCase()} (KES ${lo.toLocaleString("en-KE")}–${hi.toLocaleString("en-KE")}/m²)${
+              row.floor_area_m2 === null ? ` with the assumed ${area} m² floor area: check the value or ask for the area.` : ". Check the value."
+            }`
+          : null;
+      // an approximate place (unlisted village, sub-county or ward) spreads the group wider: the location is uncertain
+      const approx = row.place_match === "nearby" || row.place_match === "area" || place?.kind === "area";
+      const step = approx ? 260 : 120;
+      const reach = approx ? 2500 : 900;
       if (place) {
         let k = 0; // position on a spiral round the place; spots on the river channel or lake edge are skipped
         for (let i = 0; i < row.count; i++) {
           let lat = place.lat;
           let lon = place.lon;
           for (let tries = 0; tries < 60; tries++, k++) {
-            const r = Math.min(120 * Math.sqrt(k + 1), 900);
+            const r = Math.min(step * Math.sqrt(k + 1), reach);
             const ang = k * 2.39996;
             lat = place.lat + (r * Math.cos(ang)) / 111_320;
             lon = place.lon + (r * Math.sin(ang)) / (111_320 * Math.cos((place.lat * Math.PI) / 180));
@@ -103,6 +125,8 @@ export default function AiTab(p: ReportProps) {
             settlement: place.name,
             src: "ai",
             confidence: row.confidence,
+            placed: approx ? "approx" : "exact",
+            batch,
           };
           for (const rp of RPS) b[`d${rp}`] = hz[rp];
           list.push(b);
@@ -111,6 +135,9 @@ export default function AiTab(p: ReportProps) {
       out.push({
         row,
         buildings: list,
+        valueFlag,
+        range: place ? depthRangeNear(grid, place.lon, place.lat) : null,
+        approx,
         areaNote: row.floor_area_m2 === null ? `typical ${t.area} m²` : null,
         valueNote: row.value_kes_per_building === null ? `area × typical KES ${t.cost.toLocaleString("en-KE")}/m²` : null,
       });
@@ -126,7 +153,7 @@ export default function AiTab(p: ReportProps) {
     setErr(null);
     setParsed(null);
     try {
-      setParsed(await postJson<IngestResult>("/api/ingest", { text, gazetteer: gazetteer.map((g) => g.name) }));
+      setParsed(await postJson<IngestResult>("/api/ingest", { text, gazetteer: gazetteer.map((g) => ({ name: g.name, kind: g.kind, aliases: g.aliases })) }));
     } catch (e) {
       setErr(e instanceof Error ? e.message : String(e));
     } finally {
@@ -171,12 +198,28 @@ export default function AiTab(p: ReportProps) {
               <button onClick={() => setText(SAMPLE)} className="rounded-lg bg-white/[0.06] px-3 py-1.5 text-[12px] text-slate-300 hover:bg-white/10">
                 Use sample broker email
               </button>
+              <label className="cursor-pointer rounded-lg bg-white/[0.06] px-3 py-1.5 text-[12px] text-slate-300 hover:bg-white/10" title="A schedule exported as CSV or text">
+                Upload CSV
+                <input
+                  type="file"
+                  accept=".csv,.txt,text/csv,text/plain"
+                  className="hidden"
+                  onChange={async (e) => {
+                    const f = e.target.files?.[0];
+                    e.target.value = "";
+                    if (!f) return;
+                    const body = await f.text();
+                    setText(body.length > 4000 ? body.slice(0, 4000) : body);
+                    setErr(body.length > 4000 ? `${f.name} is long: only the first 4,000 characters were loaded.` : null);
+                  }}
+                />
+              </label>
               <button onClick={ingest} disabled={!text.trim() || busy !== null} className="flex-1 rounded-lg bg-brand px-3 py-1.5 text-[13px] font-semibold text-on-brand disabled:opacity-50">
                 {busy === "ingest" ? "Claude is reading…" : "Read with Claude"}
               </button>
             </div>
             <p className="mt-2 text-[11px] leading-snug text-slate-500">
-              Claude returns rows in the shape of <code>exposure_nzoia_synthetic.csv</code>. Places must come from our gazetteer of {gazetteer.length} Busia, Siaya and Western towns and villages, so nothing is placed by guesswork. Missing areas and values are filled with documented typical values and flagged.
+              Claude returns rows in the shape of <code>exposure_nzoia_synthetic.csv</code>. Places come from our gazetteer of {gazetteer.length} towns, villages, wards and sub-counties (with other spellings); an unlisted village is placed at its sub-county with lower confidence, never dropped silently. Missing areas and values are filled with documented typical values and flagged.
             </p>
           </div>
 
@@ -199,7 +242,7 @@ export default function AiTab(p: ReportProps) {
                       </tr>
                     </thead>
                     <tbody>
-                      {preview.map(({ row, buildings: bs, areaNote, valueNote }, i) => {
+                      {preview.map(({ row, buildings: bs, areaNote, valueNote, valueFlag, range, approx }, i) => {
                         const d100 = bs.length ? Math.max(...bs.map((b) => buildingAt(b, 100).depth)) : 0;
                         return (
                           <tr key={i} className={`${tr} align-top text-slate-200`}>
@@ -211,16 +254,35 @@ export default function AiTab(p: ReportProps) {
                                 ))}
                                 {areaNote && <li className="text-violet-300/80">Floor area: {areaNote}</li>}
                                 {valueNote && <li className="text-violet-300/80">Value: {valueNote}</li>}
+                                {valueFlag && <li className="font-medium text-amber-300">⚠ {valueFlag}</li>}
                               </ul>
                             </td>
-                            <td className={td}>{bs.length ? <span className="text-emerald-300">✓ {row.place}</span> : <span className="text-rose-300">✗ not placed</span>}</td>
+                            <td className={td}>
+                              {bs.length ? (
+                                <>
+                                  <span className={approx ? "text-amber-200" : "text-emerald-300"}>
+                                    {approx ? "≈" : "✓"} {row.place}
+                                  </span>
+                                  {approx && <div className="text-[10px] text-amber-200/70">approximate: {row.place_match === "area" ? "sub-county / ward" : "nearest listed place"}</div>}
+                                </>
+                              ) : (
+                                <span className="text-rose-300">✗ not placed: add a place</span>
+                              )}
+                            </td>
                             <td className={td}>
                               <span className="mr-1 inline-block h-2 w-2 rounded-sm" style={{ background: CLASS_UI[row.housing_class] }} />
                               {CLASS_LABEL[row.housing_class]}
                             </td>
                             <td className={`${td} text-right`}>{row.count}</td>
                             <td className={`${td} text-right`}>{kes(bs[0]?.tiv ?? row.value_kes_per_building ?? 0)}</td>
-                            <td className={`${td} text-right`}>{bs.length ? (d100 > 0 ? `${d100.toFixed(2)} m` : "dry") : "—"}</td>
+                            <td className={`${td} text-right`}>
+                              {bs.length ? (d100 > 0 ? `${d100.toFixed(2)} m` : "dry") : "—"}
+                              {range && range.max > 0 && (
+                                <div className="text-[10px] text-slate-500" title="Shallowest and deepest land cell within 2 km of the place: how much the answer depends on where exactly it stands">
+                                  {range.min > 0 ? range.min.toFixed(1) : "dry"}–{range.max.toFixed(1)} m within 2 km
+                                </div>
+                              )}
+                            </td>
                             <td className={td}>
                               <div className="h-1.5 w-16 rounded-full bg-white/10">
                                 <div className="h-full rounded-full bg-cyan-300" style={{ width: `${row.confidence * 100}%` }} />
@@ -233,6 +295,22 @@ export default function AiTab(p: ReportProps) {
                     </tbody>
                   </table>
                 </div>
+                {(() => {
+                  const dropped = preview.filter((x) => !x.buildings.length);
+                  const flagged = preview.filter((x) => x.valueFlag).length;
+                  const approxN = preview.filter((x) => x.approx && x.buildings.length).reduce((s, x) => s + x.buildings.length, 0);
+                  return dropped.length || flagged || approxN ? (
+                    <div className="rounded-lg bg-amber-300/[0.08] px-3 py-2 text-[12px] text-amber-100">
+                      {dropped.length > 0 && (
+                        <div>
+                          {dropped.reduce((s, x) => s + x.row.count, 0)} buildings in {dropped.length} {dropped.length === 1 ? "group" : "groups"} have no place: name a town, ward or sub-county in the text.
+                        </div>
+                      )}
+                      {approxN > 0 && <div>{approxN} buildings placed approximately (sub-county or nearest place): check the depth range before approving.</div>}
+                      {flagged > 0 && <div>{flagged} {flagged === 1 ? "value looks" : "values look"} far outside the class norm: confirm with the broker.</div>}
+                    </div>
+                  ) : null;
+                })()}
                 {parsed.unclear.length > 0 && (
                   <div className="rounded-lg bg-amber-300/[0.08] px-3 py-2 text-[12px] text-amber-100">
                     <b>Claude flagged:</b>

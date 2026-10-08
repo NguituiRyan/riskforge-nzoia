@@ -68,22 +68,29 @@ export function alertFor(nd: NodeData, stage: number): { label: string; tone: "o
 }
 
 export interface TriggerTerms {
-  triggerStage: number; // m
+  triggerStage: number; // m: full payout
   payout: number; // KES per event
   load: number; // premium loading over expected payout
+  /** optional first step: pays firstPct of the payout once the stage reaches firstStage (0 = single trigger) */
+  firstStage: number;
+  firstPct: number;
 }
 
 /** parametric cover on the node's stage: pays `payout` in any year the stage reaches the trigger */
 export function priceTrigger(nd: NodeData, terms: TriggerTerms, portfolio: PortfolioResult) {
   const triggerRp = rpForStage(nd, terms.triggerStage) ?? 2;
-  const annualProb = 1 / triggerRp;
-  const expectedPayout = terms.payout * annualProb;
+  // two steps catch the frequent floods a single rare trigger misses: part pays at the first stage, the rest at the trigger
+  const stepped = terms.firstPct > 0 && terms.firstStage < terms.triggerStage;
+  const firstRp = stepped ? (rpForStage(nd, terms.firstStage) ?? 2) : null;
+  const annualProb = firstRp ? 1 / firstRp : 1 / triggerRp; // chance of any payout in a year
+  const expectedPayout = terms.payout * (firstRp ? terms.firstPct / firstRp + (1 - terms.firstPct) / triggerRp : 1 / triggerRp);
   const premium = expectedPayout * (1 + terms.load);
   // basis risk: compare the fixed payout with the modelled loss of the book at each return period
   const basis = [10, 20, 50, 100, 200, 500].map((rp) => {
     const loss = portfolio.scenarios[rp].loss;
-    const pays = rp >= triggerRp ? terms.payout : 0;
+    const reaches = (x: number) => rp >= x * (1 - 1e-9); // a stage on a table point maps to exactly that return period
+    const pays = reaches(triggerRp) ? terms.payout : firstRp && reaches(firstRp) ? terms.payout * terms.firstPct : 0;
     return { rp, loss, pays, cover: loss > 0 ? pays / loss : null };
   });
-  return { triggerRp, annualProb, expectedPayout, premium, basis };
+  return { triggerRp, firstRp, annualProb, expectedPayout, premium, basis };
 }

@@ -74,7 +74,7 @@ RGB LED      -> GPIO 25 / 26 / 27 through 220 Ω (common cathode to GND)   [opti
 3. Check the scale: `1 cm = 0.30 m` of river stage.
 4. Pre-fill the tank to about **8.5 cm**, which reads as 2.55 m: just under the 2.8 m alert level.
 5. Pour one cup: within about 5 s the level crosses **Alert**, the 3D water rises over Budalangi, and the flooded buildings and event loss update.
-6. Keep pouring past **16 cm** (4.8 m): the parametric trigger fires.
+6. At **14 cm** (4.2 m) the parametric trigger's first step pays 30%; keep pouring past **16 cm** (4.8 m) and it pays in full.
 7. Security moment: run `python scripts/send_test_reading.py --forge --url https://riskforge-nzoia.vercel.app/api/node`, or press **Send a forged reading** under **Underwriter report → River node**. The panel shows the forgery as rejected.
 
 **Fallbacks, in order:**

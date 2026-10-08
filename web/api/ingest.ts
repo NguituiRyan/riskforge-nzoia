@@ -15,7 +15,10 @@ const MAX_TEXT = 4000;
 
 const Row = z.object({
   description: z.string().describe("Short label for this group of buildings, e.g. '12 iron-sheet shops'"),
-  place: z.string().describe("Exactly one name from the gazetteer list, or 'unknown'"),
+  place: z.string().describe("Exactly one canonical name from the gazetteer list, or 'unknown'"),
+  place_match: z
+    .enum(["exact", "alias", "nearby", "area", "unknown"])
+    .describe("exact: the text names this place; alias: another spelling of it; nearby: an unlisted village placed at the nearest listed place; area: placed at the listed sub-county or ward that contains it; unknown: no location at all"),
   housing_class: z.enum(["informal_iron_sheet", "semi_permanent", "permanent_masonry", "concrete_rcc"]),
   count: z.number().int().describe("Number of buildings in this group"),
   floor_area_m2: z.number().nullable().describe("Floor area per building if stated or directly derivable, else null"),
@@ -39,7 +42,8 @@ Housing classes:
 
 Rules:
 - One row per distinct group of similar buildings; count is how many buildings are in the group.
-- place must be exactly one name from the gazetteer the user provides, or "unknown" if no listed place is named or clearly implied.
+- place must be exactly one canonical name from the gazetteer (entries look like "Name [kind; also: other spellings]"). Answer with the canonical Name, never the other spelling.
+- If the text names a place that is not listed but you know where it is (a village, estate, market or ward), do not give up: choose the listed [area] entry that contains it (a sub-county or ward, e.g. a Budalang'i village -> Bunyala) or the nearest listed place, set place_match to "area" or "nearby", say which in assumptions and lower confidence. Use "unknown" only when no location at all can be inferred.
 - Values are in Kenyan shillings: read "Ksh", "KES", "1.2m", "3 million" correctly. If a total is given for a group, divide by count.
 - Leave floor_area_m2 or value_kes_per_building null when the text does not give them; the model will apply documented typical values. Never invent precise figures.
 - List every inference in assumptions and lower confidence when you guess.
@@ -47,13 +51,25 @@ Rules:
 
 export async function POST(request: Request): Promise<Response> {
   let body: { text?: unknown; gazetteer?: unknown };
+  type Entry = { name: string; kind?: string; aliases?: string[] };
   try {
     body = await request.json();
   } catch {
     return Response.json({ error: "Body must be JSON" }, { status: 400 });
   }
   const text = typeof body.text === "string" ? body.text.trim() : "";
-  const gazetteer = Array.isArray(body.gazetteer) ? body.gazetteer.filter((g): g is string => typeof g === "string").slice(0, 200) : [];
+  // entries are { name, kind, aliases } (older clients send plain names)
+  const entries: Entry[] = (Array.isArray(body.gazetteer) ? body.gazetteer : [])
+    .map((g): Entry | null => (typeof g === "string" ? { name: g } : g && typeof g === "object" && typeof (g as Entry).name === "string" ? (g as Entry) : null))
+    .filter((g): g is Entry => g !== null)
+    .slice(0, 300);
+  const gazetteer = entries.map((g) => g.name);
+  const canonical = new Map<string, string>();
+  for (const g of entries) for (const n of [g.name, ...(Array.isArray(g.aliases) ? g.aliases : [])]) if (typeof n === "string") canonical.set(n.toLowerCase(), g.name);
+  const listed = entries.map((g) => {
+    const extra = [g.kind, Array.isArray(g.aliases) && g.aliases.length ? `also: ${g.aliases.join(", ")}` : ""].filter(Boolean).join("; ");
+    return extra ? `${g.name} [${extra}]` : g.name;
+  });
   if (!text) return Response.json({ error: "Paste a description first" }, { status: 400 });
   if (text.length > MAX_TEXT) return Response.json({ error: `Keep it under ${MAX_TEXT} characters` }, { status: 400 });
   if (!process.env.ANTHROPIC_API_KEY) return Response.json({ error: "AI is not configured on this deployment (ANTHROPIC_API_KEY missing)" }, { status: 503 });
@@ -68,7 +84,7 @@ export async function POST(request: Request): Promise<Response> {
       messages: [
         {
           role: "user",
-          content: `Gazetteer (allowed place names): ${gazetteer.join(", ")}\n\n<broker_text>\n${text}\n</broker_text>`,
+          content: `Gazetteer (allowed places; [area] = sub-county or ward):\n${listed.join("\n")}\n\n<broker_text>\n${text}\n</broker_text>`,
         },
       ],
     });
@@ -78,12 +94,16 @@ export async function POST(request: Request): Promise<Response> {
     if (!response.parsed_output) {
       return Response.json({ error: "The model's answer did not match the exposure schema; try rephrasing." }, { status: 502 });
     }
-    const rows = response.parsed_output.rows.map((r) => ({
-      ...r,
-      count: Math.min(Math.max(Math.round(r.count), 1), 100),
-      confidence: Math.min(Math.max(r.confidence, 0), 1),
-      place: gazetteer.includes(r.place) ? r.place : "unknown",
-    }));
+    const rows = response.parsed_output.rows.map((r) => {
+      const place = gazetteer.includes(r.place) ? r.place : (canonical.get(r.place.toLowerCase()) ?? "unknown");
+      return {
+        ...r,
+        count: Math.min(Math.max(Math.round(r.count), 1), 100),
+        confidence: Math.min(Math.max(r.confidence, 0), 1),
+        place,
+        place_match: place === "unknown" ? "unknown" : r.place_match === "unknown" ? "nearby" : r.place_match,
+      };
+    });
     return Response.json({
       rows,
       unclear: response.parsed_output.unclear,

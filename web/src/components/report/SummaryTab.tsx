@@ -1,4 +1,5 @@
 import EpChart from "../EpChart";
+import DecisionBox from "./DecisionBox";
 import { HazardBars, ShareBars, StackedLossBars } from "../charts";
 import { lossesOf } from "../Panels";
 import { Card, Kpi, td, th, tr } from "./ui";
@@ -7,11 +8,12 @@ import type { RP } from "../../lib/types";
 import { CLASSES, RPS } from "../../lib/types";
 import { aal, KEY_RPS, ONSET_RP, technicalPremium } from "../../lib/engine";
 import { accumulation, topRisks } from "../../lib/report";
-import { CLASS_UI, CLASS_LABEL, kes } from "../../lib/format";
+import { CLASS_UI, CLASS_LABEL, floodedText, kes } from "../../lib/format";
 
 const pct = (x: number, d = 2) => `${(x * 100).toFixed(d)}%`;
 
-export default function SummaryTab({ stats, portfolio, buildings, res, baseRes, aiRows, gazetteer, live, onPickBuilding }: ReportProps) {
+export default function SummaryTab(props: ReportProps) {
+  const { stats, portfolio, buildings, res, baseRes, aiRows, gazetteer, live, onPickBuilding } = props;
   const prem = technicalPremium(res);
   const lossByRp = Object.fromEntries(RPS.map((r) => [r, res.scenarios[r].loss])) as Record<RP, number>;
   const acc = accumulation(buildings, gazetteer).slice(0, 8);
@@ -21,12 +23,14 @@ export default function SummaryTab({ stats, portfolio, buildings, res, baseRes, 
 
   return (
     <div className="space-y-4">
+      <DecisionBox {...props} />
+
       <div className="grid grid-cols-2 gap-2 md:grid-cols-3 lg:grid-cols-6">
         <Kpi label="Total exposure" value={kes(res.tiv)} sub={`${res.count.toLocaleString("en-KE")} buildings`} />
         <Kpi label="Average annual loss" value={kes(res.aal)} sub={`${pct(res.aal / res.tiv)} of insured value`} tone="amber" />
-        <Kpi label="1-in-100 loss" value={kes(res.scenarios[100].loss)} sub={`${res.scenarios[100].wet} buildings flooded`} />
+        <Kpi label="1-in-100 loss" value={kes(res.scenarios[100].loss)} sub={`${floodedText(res.scenarios[100].wet, res.scenarios[100].wetW)} buildings flooded`} />
         <Kpi label="1-in-250 loss" value={kes(res.scenarios[250].loss)} sub="interpolated 200↔500" />
-        <Kpi label="Technical premium" value={kes(prem.gross)} sub={`illustrative · ${pct(prem.rateOnTiv, 3)} rate`} />
+        <Kpi label="Technical premium, gross" value={kes(prem.gross)} sub={`illustrative · ${pct(prem.rateOnTiv, 3)} rate`} />
         {live ? (
           <Kpi label="Live event loss" value={kes(live.scenario?.loss ?? 0)} sub={live.rp ? `river at 1-in-${Math.round(live.rp)}` : "river in bank"} tone="cyan" />
         ) : (
@@ -89,7 +93,7 @@ export default function SummaryTab({ stats, portfolio, buildings, res, baseRes, 
                       <td className={td}>{pct(1 / r, r >= 200 ? 2 : 1)}</td>
                       <td className={`${td} text-right font-medium`}>{kes(sc.loss)}</td>
                       <td className={`${td} text-right`}>{pct(sc.loss / res.tiv)}</td>
-                      <td className={`${td} text-right`}>{sc.wet}</td>
+                      <td className={`${td} text-right`}>{floodedText(sc.wet, sc.wetW)}</td>
                       <td className={`${td} text-right`}>{kes(sc.tivWet)}</td>
                     </tr>
                   );
@@ -164,7 +168,7 @@ export default function SummaryTab({ stats, portfolio, buildings, res, baseRes, 
       </div>
 
       <div className="grid gap-4 lg:grid-cols-5">
-        <Card title="Top 10 risks by average annual loss" hint="click to fly there" className="lg:col-span-3">
+        <Card title="Top 10 risks by contribution to the book" hint="AAL × weight · click to fly there" className="lg:col-span-3">
           <div className="overflow-x-auto">
             <table className="w-full text-[13px]">
               <thead>
@@ -174,11 +178,12 @@ export default function SummaryTab({ stats, portfolio, buildings, res, baseRes, 
                   <th className={th}>Near</th>
                   <th className={`${th} text-right`}>Value</th>
                   <th className={`${th} text-right`}>Depth 1-in-100</th>
-                  <th className={`${th} text-right`}>AAL</th>
+                  <th className={`${th} text-right`}>AAL in book</th>
+                  <th className={`${th} text-right`}>Share</th>
                 </tr>
               </thead>
               <tbody>
-                {top.map(({ b, aal: a, at100 }) => (
+                {top.map(({ b, aal: a, share, at100 }) => (
                   <tr key={b.id} className={`${tr} cursor-pointer text-slate-200 hover:bg-white/[0.04]`} onClick={() => onPickBuilding(b)}>
                     <td className={td}>
                       {b.id}
@@ -189,6 +194,7 @@ export default function SummaryTab({ stats, portfolio, buildings, res, baseRes, 
                     <td className={`${td} text-right`}>{kes(b.tiv)}</td>
                     <td className={`${td} text-right`}>{at100.depth.toFixed(2)} m</td>
                     <td className={`${td} text-right font-medium text-amber-200`}>{kes(a)}</td>
+                    <td className={`${td} text-right text-slate-400`}>{pct(share, 0)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -239,7 +245,7 @@ function Pipeline({ stats, res }: Pick<ReportProps, "stats" | "res">) {
   const steps: [string, string, string, string][] = [
     ["1 · Hazard", "Six JRC return-period depth maps", `${Math.round(stats.floodLandKm2["100"])} km² of land flooded at 1-in-100`, "real"],
     ["2 · Vulnerability", "Depth-damage curve per class", `${Math.round(meanDr * 100)}% average damage to flooded value at 1-in-100`, "assumption"],
-    ["3 · Exposure", `${res.count.toLocaleString("en-KE")} buildings`, `${kes(res.tiv)} insured · ${at100.wet} in the 1-in-100 flood`, "synthetic"],
+    ["3 · Exposure", `${res.count.toLocaleString("en-KE")} buildings`, `${kes(res.tiv)} insured · ${floodedText(at100.wet, at100.wetW)} in the 1-in-100 flood`, "synthetic"],
     ["4 · Financial engine", "Loss = damage × value, per return period", `1-in-100 ${kes(at100.loss)} · AAL ${kes(res.aal)}`, "engine"],
     ["Decision", "EP curve, PML, price", `1-in-250 ${kes(res.scenarios[250].loss)} · premium ${kes(prem.gross)} (illustr.)`, "engine"],
   ];

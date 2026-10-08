@@ -46,7 +46,7 @@ export default function App() {
   const [mode, setMode] = useState<Mode>("scenario");
   const [reading, setReading] = useState<NodeReading | null>(null);
   const [aiRows, setAiRows] = useState<BuildingProps[]>([]);
-  const [trigger, setTrigger] = useState<TriggerTerms>({ triggerStage: 4.8, payout: 7_000_000, load: 0.4 });
+  const [trigger, setTrigger] = useState<TriggerTerms>({ triggerStage: 4.8, payout: 7_000_000, load: 0.4, firstStage: 4.2, firstPct: 0.3 });
   const [report, setReport] = useState<{ open: boolean; tab: ReportTab }>({ open: false, tab: "summary" });
   const [theme, setTheme] = useState<Theme>(initialTheme);
   const toggleTheme = useCallback(() => setTheme((t) => (t === "dark" ? "light" : "dark")), []);
@@ -202,7 +202,7 @@ export default function App() {
           {/* right column: insights (desktop) */}
           <div className="pointer-events-none absolute right-0 top-0 hidden max-h-[calc(100%-120px)] w-[340px] p-4 lg:flex">
             <div className="glass panel scroll-thin pointer-events-auto min-h-0 overflow-y-auto rounded-2xl p-4">
-              <Insights res={res} s={s} a={a} />
+              <Insights res={res} s={s} a={a} aiCount={aiRows.length} />
             </div>
           </div>
 
@@ -227,7 +227,7 @@ export default function App() {
             <div className="scroll-thin overflow-y-auto px-4 pb-[calc(env(safe-area-inset-bottom)+14px)]" style={{ maxHeight: sheetOpen ? "68dvh" : "180px" }}>
               {panelBody(true)}
               <div className="mt-4 border-t border-white/10 pt-4">
-                <Insights res={res} s={s} a={a} />
+                <Insights res={res} s={s} a={a} aiCount={aiRows.length} />
               </div>
               <Credit className="mt-4 text-center" />
             </div>
@@ -253,7 +253,12 @@ export default function App() {
               res={res}
               baseRes={baseRes}
               aiRows={aiRows}
-              addAiRows={(rows) => setAiRows((cur) => [...cur, ...rows])}
+              addAiRows={(rows) => {
+                // approving shows the result where it happens: close the report and fly to the new buildings
+                setAiRows((cur) => [...cur, ...rows]);
+                setReport((r) => ({ ...r, open: false }));
+                if (rows.length) setSelected(rows[0]);
+              }}
               removeAiRow={(id) => setAiRows((cur) => cur.filter((b) => b.id !== id))}
               trigger={trigger}
               setTrigger={setTrigger}

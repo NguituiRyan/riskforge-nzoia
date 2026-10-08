@@ -323,6 +323,38 @@ th.text-right {
 .place-node[data-tone="amber"] .node-pulse {
   background: transparent;
 }
+/* ---- AI additions: NEW tag ---- */
+.new-tag {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  pointer-events: none;
+  font-family: var(--font-sans);
+  animation: new-pop 0.6s cubic-bezier(0.2, 0.8, 0.2, 1.3) 0.9s both;
+}
+.new-tag-pill {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: #083344;
+  background: #67e8f9;
+  padding: 3px 7px;
+  border-radius: 999px;
+  box-shadow: 0 0 0 3px rgb(103 232 249 / 0.25), 0 0 18px rgb(34 211 238 / 0.75);
+}
+.new-tag-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: #cffafe;
+  text-shadow: 0 1px 3px rgb(0 0 0 / 0.9), 0 0 10px rgb(0 0 0 / 0.6);
+  white-space: nowrap;
+}
+@keyframes new-pop {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.6);
+  }
+}
 @keyframes node-pulse {
   from {
     transform: scale(0.4);
@@ -389,6 +421,7 @@ th.text-right {
 
 @media (prefers-reduced-motion: reduce) {
   .node-pulse,
+  .new-tag,
   .rise-in {
     animation: none;
   }

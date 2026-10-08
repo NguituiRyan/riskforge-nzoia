@@ -1,6 +1,6 @@
 import type { BuildingProps, RP } from "../lib/types";
 import { RPS } from "../lib/types";
-import { buildingAt, severity } from "../lib/engine";
+import { buildingAt, CURVES, severity, weightOf } from "../lib/engine";
 import { DepthCurve } from "./charts";
 import { CLASS_UI, CLASS_LABEL, ISSUE_COLOUR, WHERE_LABEL, kes } from "../lib/format";
 
@@ -51,6 +51,8 @@ export default function BuildingCard({ b, rp, liveRp, onClose }: { b: BuildingPr
         <Metric label="Loss" value={kes(now.loss)} strong />
       </div>
 
+      <WhyThisLoss b={b} rpLabel={rpLabel} depth={now.depth} dr={now.dr} loss={now.loss} />
+
       <div className="mt-3">
         <div className="text-[10px] uppercase tracking-wider text-slate-500">Flood depth vs rarity at this building (JRC)</div>
         <DepthCurve b={b} highlight={liveRp ? null : rp} />
@@ -86,6 +88,33 @@ export default function BuildingCard({ b, rp, liveRp, onClose }: { b: BuildingPr
           })}
         </tbody>
       </table>
+    </div>
+  );
+}
+
+/** explainability: the loss as four steps, each labelled with where its number comes from */
+function WhyThisLoss({ b, rpLabel, depth, dr, loss }: { b: BuildingProps; rpLabel: string; depth: number; dr: number; loss: number }) {
+  const c = CURVES[b.cls];
+  const w = weightOf(b);
+  const steps: [string, string, "real" | "assumption" | "synthetic" | "ai"][] = [
+    ["Water", depth > 0 ? `${depth.toFixed(2)} m deep here in the ${rpLabel} flood (JRC map, ~925 m cell)` : `dry in the ${rpLabel} flood (JRC map)`, "real"],
+    ["Damage", depth > 0 ? `${CLASS_LABEL[b.cls]} curve: JRC Africa curve at ${c.k}× the depth, capped at ${Math.round(c.cap * 100)}% → ${(dr * 100).toFixed(0)}% damaged` : "no water, no damage", "assumption"],
+    ["Value", `${kes(b.tiv)} insured (${b.area.toLocaleString("en-KE")} m² × KES ${b.cost.toLocaleString("en-KE")}/m²)${b.placed === "approx" ? " · location approximate" : ""}`, b.src === "ai" ? "ai" : "synthetic"],
+    ["Loss", `${(dr * 100).toFixed(0)}% × ${kes(b.tiv)} = ${kes(loss)}${w !== 1 ? `; counts ×${w.toFixed(2)} in the book = ${kes(loss * w)}` : ""}`, "assumption"],
+  ];
+  const chip = { real: "chip chip-real", assumption: "chip chip-assume", synthetic: "chip chip-synthetic", ai: "chip chip-ai" } as const;
+  return (
+    <div className="mt-3 rounded-xl bg-white/[0.03] px-3 py-2.5">
+      <div className="text-[10px] uppercase tracking-wider text-slate-500">Why this loss</div>
+      <ol className="mt-1 space-y-1 text-[12px] text-slate-300">
+        {steps.map(([k, text, kind]) => (
+          <li key={k} className="flex items-start gap-2">
+            <span className="w-12 shrink-0 text-slate-500">{k}</span>
+            <span className="flex-1">{text}</span>
+            <span className={`${chip[kind]} shrink-0`}>{kind === "ai" ? "AI" : kind}</span>
+          </li>
+        ))}
+      </ol>
     </div>
   );
 }

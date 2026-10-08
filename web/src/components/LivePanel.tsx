@@ -165,6 +165,7 @@ export default function LivePanel({ nd, reading, onReading, scenario, trigger, o
   const replayDay = source === "replay" ? series[dayIdx] : null;
   const flow = replayDay ? replayDay.q : rp ? flowForRp(nd, rp) : null;
   const triggered = stage >= trigger.triggerStage;
+  const stepHit = !triggered && trigger.firstPct > 0 && trigger.firstStage < trigger.triggerStage && stage >= trigger.firstStage;
   const toneClass = { ok: "bg-emerald-400/15 text-emerald-300 ring-emerald-400/30", amber: "bg-amber-400/15 text-amber-200 ring-amber-400/40", red: "bg-orange-500/15 text-orange-200 ring-orange-400/40", danger: "bg-rose-500/20 text-rose-200 ring-rose-400/50" }[alert.tone];
 
   return (
@@ -273,10 +274,13 @@ export default function LivePanel({ nd, reading, onReading, scenario, trigger, o
         </div>
       </div>
 
-      <div className={`rounded-xl px-3 py-2.5 text-[12px] ring-1 ${triggered ? "bg-rose-500/15 text-rose-100 ring-rose-400/40" : "bg-white/[0.04] text-slate-300 ring-white/10"}`}>
-        <div className="font-semibold">{triggered ? "Parametric trigger hit" : "Parametric trigger armed"}</div>
+      <div className={`rounded-xl px-3 py-2.5 text-[12px] ring-1 ${triggered ? "bg-rose-500/15 text-rose-100 ring-rose-400/40" : stepHit ? "bg-amber-400/15 text-amber-100 ring-amber-300/40" : "bg-white/[0.04] text-slate-300 ring-white/10"}`}>
+        <div className="font-semibold">
+          {triggered ? `Parametric trigger hit: pays ${kes(trigger.payout)}` : stepHit ? `First step hit: pays ${kes(trigger.payout * trigger.firstPct)}` : "Parametric trigger armed"}
+        </div>
         <div className="text-[11px] text-slate-400">
-          Pays {kes(trigger.payout)} when Rwambwa reaches {trigger.triggerStage.toFixed(1)} m
+          {trigger.firstPct > 0 && trigger.firstStage < trigger.triggerStage ? `Pays ${Math.round(trigger.firstPct * 100)}% at ${trigger.firstStage.toFixed(1)} m, ` : "Pays "}
+          {kes(trigger.payout)} when Rwambwa reaches {trigger.triggerStage.toFixed(1)} m
           {rpForStage(nd, trigger.triggerStage) ? ` (≈1-in-${Math.round(rpForStage(nd, trigger.triggerStage)!)})` : ""}.{" "}
           <button onClick={onOpenReport} className="text-brand-300 underline-offset-2 hover:underline">
             Price it

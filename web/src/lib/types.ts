@@ -65,5 +65,8 @@ export interface Place {
   name: string;
   lat: number;
   lon: number;
-  kind: "focus" | "town" | "village" | "node" | "landmark" | "peak";
+  /** area = sub-county or ward: placing a building there is approximate */
+  kind: "focus" | "town" | "village" | "node" | "landmark" | "peak" | "area";
+  /** other spellings brokers use (gazetteer only) */
+  aliases?: string[];
 }

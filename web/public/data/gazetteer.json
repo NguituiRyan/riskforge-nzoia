@@ -1,5 +1,11 @@
 [
 {
+"name": "Alego Usonga",
+"lat": 0.0588,
+"lon": 34.2167,
+"kind": "area"
+},
+{
 "name": "Bondo",
 "lat": -0.1006,
 "lon": 34.2253,
@@ -9,7 +15,11 @@
 "name": "Budalangi",
 "lat": 0.0664,
 "lon": 34.0069,
-"kind": "focus"
+"kind": "focus",
+"aliases": [
+"Budalang'i",
+"Budalangi Centre"
+]
 },
 {
 "name": "Bukoma",
@@ -24,10 +34,22 @@
 "kind": "village"
 },
 {
+"name": "Bulwani",
+"lat": 0.3633,
+"lon": 34.2975,
+"kind": "village"
+},
+{
 "name": "Bumala",
 "lat": 0.3031,
 "lon": 34.2024,
 "kind": "village"
+},
+{
+"name": "Bumula",
+"lat": 0.5663,
+"lon": 34.4426,
+"kind": "area"
 },
 {
 "name": "Bungoma",
@@ -36,10 +58,57 @@
 "kind": "town"
 },
 {
+"name": "Bunyala",
+"lat": 0.0664,
+"lon": 34.0069,
+"kind": "area",
+"aliases": [
+"Bunyala sub-county",
+"Budalang'i constituency"
+]
+},
+{
+"name": "Bunyala Central",
+"lat": 0.1125,
+"lon": 34.0375,
+"kind": "area",
+"orig": [
+0.108,
+34.0405
+]
+},
+{
+"name": "Bunyala North",
+"lat": 0.1618,
+"lon": 34.0194,
+"kind": "area"
+},
+{
+"name": "Bunyala South",
+"lat": 0.0503,
+"lon": 34.0222,
+"kind": "area"
+},
+{
+"name": "Bunyala West",
+"lat": 0.0861,
+"lon": 33.9711,
+"kind": "area"
+},
+{
 "name": "Busia",
 "lat": 0.3712,
 "lon": 34.2648,
-"kind": "town"
+"kind": "town",
+"aliases": [
+"Busia town"
+]
+},
+{
+"name": "Butere",
+"lat": 0.2163,
+"lon": 34.4981,
+"kind": "area"
 },
 {
 "name": "Butula",
@@ -54,9 +123,21 @@
 "kind": "village"
 },
 {
+"name": "Gem",
+"lat": 0.0377,
+"lon": 34.4645,
+"kind": "area"
+},
+{
 "name": "Igigo",
 "lat": 0.0993,
 "lon": 34.0158,
+"kind": "village"
+},
+{
+"name": "Iyanga",
+"lat": 0.0299,
+"lon": 34.0245,
 "kind": "village"
 },
 {
@@ -66,10 +147,28 @@
 "kind": "town"
 },
 {
+"name": "Kanduyi",
+"lat": 0.5618,
+"lon": 34.6099,
+"kind": "area"
+},
+{
 "name": "Khajula",
 "lat": 0.077,
 "lon": 33.9935,
 "kind": "village"
+},
+{
+"name": "Khwisero",
+"lat": 0.146,
+"lon": 34.5825,
+"kind": "area"
+},
+{
+"name": "Kimilili",
+"lat": 0.7853,
+"lon": 34.7282,
+"kind": "area"
 },
 {
 "name": "Kisumu",
@@ -90,9 +189,27 @@
 "kind": "village"
 },
 {
+"name": "Lugari",
+"lat": 0.6179,
+"lon": 34.8998,
+"kind": "area"
+},
+{
+"name": "Lurambi",
+"lat": 0.2693,
+"lon": 34.6952,
+"kind": "area"
+},
+{
 "name": "Mabinju",
 "lat": 0.0688,
 "lon": 33.9929,
+"kind": "village"
+},
+{
+"name": "Magombe",
+"lat": 0.0972,
+"lon": 34.0435,
 "kind": "village"
 },
 {
@@ -108,10 +225,19 @@
 "kind": "village"
 },
 {
+"name": "Matungu",
+"lat": 0.3812,
+"lon": 34.4678,
+"kind": "area"
+},
+{
 "name": "Mt Elgon",
 "lat": 1.1183,
 "lon": 34.5267,
-"kind": "peak"
+"kind": "peak",
+"aliases": [
+"Mount Elgon"
+]
 },
 {
 "name": "Mudembi",
@@ -120,10 +246,31 @@
 "kind": "village"
 },
 {
+"name": "Mukhobola",
+"lat": 0.0823,
+"lon": 34.028,
+"kind": "village"
+},
+{
 "name": "Mumias",
 "lat": 0.3351,
 "lon": 34.4834,
-"kind": "town"
+"kind": "town",
+"aliases": [
+"Mumias town"
+]
+},
+{
+"name": "Mumias East",
+"lat": 0.3332,
+"lon": 34.5831,
+"kind": "area"
+},
+{
+"name": "Mumias West",
+"lat": 0.2823,
+"lon": 34.4361,
+"kind": "area"
 },
 {
 "name": "Mundika",
@@ -138,9 +285,27 @@
 "kind": "village"
 },
 {
+"name": "Nambale",
+"lat": 0.5028,
+"lon": 34.3582,
+"kind": "area"
+},
+{
 "name": "Nangina",
 "lat": 0.2763,
 "lon": 34.1033,
+"kind": "village"
+},
+{
+"name": "Navakholo",
+"lat": 0.3871,
+"lon": 34.6575,
+"kind": "area"
+},
+{
+"name": "Nyadorera",
+"lat": 0.1121,
+"lon": 34.1053,
 "kind": "village"
 },
 {
@@ -157,7 +322,23 @@
 "orig": [
 0.0897,
 33.993
+],
+"aliases": [
+"Port Vic",
+"Bunyala Port"
 ]
+},
+{
+"name": "Rarieda",
+"lat": -0.2327,
+"lon": 34.3049,
+"kind": "area"
+},
+{
+"name": "Rugunga",
+"lat": 0.0786,
+"lon": 34.001,
+"kind": "village"
 },
 {
 "name": "Rukala",
@@ -166,10 +347,22 @@
 "kind": "village"
 },
 {
+"name": "Runyu",
+"lat": 0.0482,
+"lon": 33.9945,
+"kind": "village"
+},
+{
 "name": "Rwambwa",
 "lat": 0.1289,
 "lon": 34.0915,
 "kind": "node"
+},
+{
+"name": "Samia",
+"lat": 0.2426,
+"lon": 34.0665,
+"kind": "area"
 },
 {
 "name": "Sega",
@@ -181,7 +374,16 @@
 "name": "Siaya",
 "lat": -0.0604,
 "lon": 34.2001,
-"kind": "town"
+"kind": "town",
+"aliases": [
+"Siaya town"
+]
+},
+{
+"name": "Sidindi",
+"lat": 0.1548,
+"lon": 34.3807,
+"kind": "village"
 },
 {
 "name": "Siginga",
@@ -199,13 +401,35 @@
 "name": "Sio Port",
 "lat": 0.2241,
 "lon": 34.0216,
-"kind": "village"
+"kind": "village",
+"aliases": [
+"Sio-Port",
+"Sioport"
+]
 },
 {
 "name": "Sisenye",
 "lat": 0.1607,
 "lon": 33.9975,
 "kind": "village"
+},
+{
+"name": "Teso North",
+"lat": 0.6746,
+"lon": 34.3448,
+"kind": "area"
+},
+{
+"name": "Teso South",
+"lat": 0.5367,
+"lon": 34.2343,
+"kind": "area"
+},
+{
+"name": "Ugenya",
+"lat": 0.2109,
+"lon": 34.1751,
+"kind": "area"
 },
 {
 "name": "Ugunja",
@@ -220,9 +444,33 @@
 "kind": "village"
 },
 {
+"name": "Usenge",
+"lat": -0.0671,
+"lon": 34.0565,
+"kind": "village"
+},
+{
 "name": "Webuye",
 "lat": 0.6076,
 "lon": 34.7688,
+"kind": "town"
+},
+{
+"name": "Webuye East",
+"lat": 0.6478,
+"lon": 34.7976,
+"kind": "area"
+},
+{
+"name": "Webuye West",
+"lat": 0.5949,
+"lon": 34.7122,
+"kind": "area"
+},
+{
+"name": "Yala",
+"lat": 0.1611,
+"lon": 34.6717,
 "kind": "town"
 }
 ]

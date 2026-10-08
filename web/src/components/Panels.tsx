@@ -4,7 +4,7 @@ import EpChart from "./EpChart";
 import ThemeToggle from "./ThemeToggle";
 import BrandMark from "./BrandMark";
 import type { Theme } from "../lib/theme";
-import { WATER_EXAGGERATION, type CameraPreset } from "./MapScene";
+import { NEW_COLOUR, WATER_EXAGGERATION, type CameraPreset } from "./MapScene";
 import type { ColourMode, PortfolioView, RP, Stats } from "../lib/types";
 import { CLASSES, RPS } from "../lib/types";
 import { KEY_RPS, ONSET_RP, SEVERITY_REF_M, type PortfolioResult } from "../lib/engine";
@@ -147,8 +147,17 @@ export function Controls({ stats, res, s, a, compact }: { stats: Stats; res: Por
           <AnimatedValue value={at.loss} format={fmtKes} />
         </Stat>
         <Stat label="Buildings in flood">
-          <AnimatedValue value={at.wet} format={fmtInt} />
-          <span className="text-slate-500"> / {res.count}</span>
+          {Math.abs(at.wetW - at.wet) < 0.5 ? (
+            <>
+              <AnimatedValue value={at.wet} format={fmtInt} />
+              <span className="text-slate-500"> / {res.count}</span>
+            </>
+          ) : (
+            <>
+              ≈<AnimatedValue value={at.wetW} format={fmtInt} />
+              <span className="text-[11px] font-normal text-slate-500"> · {at.wet} on map</span>
+            </>
+          )}
         </Stat>
         <Stat label="Avg annual loss">
           <AnimatedValue value={res.aal} format={fmtKes} />
@@ -168,9 +177,16 @@ export function Controls({ stats, res, s, a, compact }: { stats: Stats; res: Por
           ]}
         />
         {s.portfolio === "book" ? (
+          <>
           <p className="mt-2 text-[11px] leading-snug text-slate-500">
-            Placed by population with a town uplift for insurance take-up, never on the river channel. The flood plain is over-sampled ({stats.bookStrata.floodplain} of {stats.portfolios.book.count.toLocaleString("en-KE")}) so there is enough to study, then weighted back (×{stats.bookWeights.floodplain.toFixed(2)}) so totals match where people live.
+            Synthetic buildings placed where people live, never on the river channel.
           </p>
+          <ModelNotes>
+            <p>
+              Placement: population × insurance take-up (towns weigh more). The flood plain is over-sampled ({stats.bookStrata.floodplain} of {stats.portfolios.book.count.toLocaleString("en-KE")}) so there is enough to study, then weighted back (×{stats.bookWeights.floodplain.toFixed(2)}) so totals match where people live.
+            </p>
+          </ModelNotes>
+          </>
         ) : (
           <>
           <p className="mt-2 text-[11px] leading-snug text-slate-500">
@@ -211,7 +227,7 @@ export function Controls({ stats, res, s, a, compact }: { stats: Stats; res: Por
   );
 }
 
-export function Insights({ res, s, a }: { res: PortfolioResult; s: ViewState; a: ViewActions }) {
+export function Insights({ res, s, a, aiCount = 0 }: { res: PortfolioResult; s: ViewState; a: ViewActions; aiCount?: number }) {
   const rpForBars = s.mode === "live" ? 100 : s.rp;
   const byClass = res.scenarios[rpForBars].byClass;
   const maxClass = Math.max(...CLASSES.map((c) => byClass[c].loss), 1);
@@ -227,9 +243,6 @@ export function Insights({ res, s, a }: { res: PortfolioResult; s: ViewState; a:
             </div>
           ))}
         </div>
-        <p className="mt-1.5 text-[11px] leading-snug text-slate-500">
-          Losses assumed to start at the 1-in-{ONSET_RP} flood. JRC maps ignore the Budalangi dykes, so this onset is our biggest uncertainty.
-        </p>
       </Section>
 
       <Section title={`Loss by construction · 1-in-${rpForBars}`}>
@@ -250,9 +263,6 @@ export function Insights({ res, s, a }: { res: PortfolioResult; s: ViewState; a:
 
       <Section title="Legend">
         <Ramp label="Flood depth" stops={DEPTH_STOPS.map(([v, c]) => [`${v} m`, c])} />
-        <p className="mt-1 text-[11px] leading-snug text-slate-500">
-          Severity score = depth ÷ {SEVERITY_REF_M} m, capped at 1 (≈ roof level of a single-storey house). Losses use the depth in metres.
-        </p>
         {s.colourMode === "damage" ? (
           <Ramp label="Damage ratio" stops={DAMAGE_STOPS.filter(([v]) => v !== 0.001).map(([v, c]) => [v === 0 ? "dry" : `${Math.round(v * 100)}%`, c])} />
         ) : (
@@ -263,17 +273,37 @@ export function Insights({ res, s, a }: { res: PortfolioResult; s: ViewState; a:
                 {CLASS_LABEL[c]}
               </span>
             ))}
+            {aiCount > 0 && (
+              <span className="col-span-2 flex items-center gap-1.5 text-cyan-200">
+                <span className="h-2 w-2 rounded-sm" style={{ background: NEW_COLOUR, boxShadow: `0 0 6px ${NEW_COLOUR}` }} />
+                New from AI intake ({aiCount})
+              </span>
+            )}
           </div>
         )}
-        <p className="mt-2 text-[11px] leading-snug text-slate-500">
-          Heights are exaggerated: water columns ×{WATER_EXAGGERATION} of depth; building pillars scale with insured value. Building squares are symbolic, not real footprints.
-        </p>
+        <ModelNotes>
+          <p>Severity score = depth ÷ {SEVERITY_REF_M} m, capped at 1 (≈ roof level of a single-storey house). Losses use the depth in metres.</p>
+          <p>Heights are exaggerated: water columns ×{WATER_EXAGGERATION} of depth; building pillars scale with insured value. Building squares are symbolic, not real footprints.</p>
+          <p>Losses are assumed to start at the 1-in-{ONSET_RP} flood. The JRC maps ignore the Budalangi dykes, so this onset is the biggest uncertainty.</p>
+        </ModelNotes>
       </Section>
 
       <button onClick={() => a.openReport("sources")} className="w-full rounded-lg bg-white/[0.05] px-3 py-2 text-left text-[12px] text-slate-300 hover:bg-white/10">
         Data sources, assumptions and the written note →
       </button>
     </div>
+  );
+}
+
+/** modeller detail an underwriter can open, folded away by default */
+export function ModelNotes({ children }: { children: ReactNode }) {
+  return (
+    <details className="group mt-2 text-[11px] leading-snug text-slate-500">
+      <summary className="cursor-pointer list-none text-slate-400 hover:text-slate-200">
+        <span className="inline-block transition group-open:rotate-90">›</span> Modelling notes
+      </summary>
+      <div className="mt-1 space-y-1">{children}</div>
+    </details>
   );
 }
 

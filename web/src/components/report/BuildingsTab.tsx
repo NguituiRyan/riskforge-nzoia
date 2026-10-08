@@ -3,7 +3,7 @@ import { Card, td, th, tr } from "./ui";
 import type { ReportProps } from "./Report";
 import type { HousingClass, RP } from "../../lib/types";
 import { CLASSES, RPS } from "../../lib/types";
-import { buildingAt, severity } from "../../lib/engine";
+import { aalInBook, buildingAt, severity, weightOf } from "../../lib/engine";
 import { download, toCsv } from "../../lib/report";
 import { CLASS_UI, CLASS_LABEL, WHERE_LABEL, kes } from "../../lib/format";
 
@@ -21,14 +21,15 @@ export default function BuildingsTab({ buildings, res, portfolio, onPickBuilding
   const rows = useMemo(() => {
     const needle = q.trim().toLowerCase();
     return buildings
-      .map((b) => ({ b, at: buildingAt(b, rp), aal: res.perBuildingAal.get(b.id) ?? 0 }))
+      .map((b) => ({ b, at: buildingAt(b, rp), w: weightOf(b), aal: aalInBook(res, b) }))
       .filter(({ b, at }) => (cls === "all" || b.cls === cls) && (!floodedOnly || at.depth > 0) && (!needle || b.id.toLowerCase().includes(needle) || (b.settlement ?? "").toLowerCase().includes(needle)))
       .sort((x, y) => (sort === "aal" ? y.aal - x.aal : sort === "loss" ? y.at.loss - x.at.loss : sort === "tiv" ? y.b.tiv - x.b.tiv : y.at.depth - x.at.depth));
   }, [buildings, res, rp, q, cls, floodedOnly, sort]);
 
   const pages = Math.max(1, Math.ceil(rows.length / PAGE));
   const view = rows.slice(page * PAGE, page * PAGE + PAGE);
-  const totals = rows.reduce((s, r) => ({ tiv: s.tiv + r.b.tiv, loss: s.loss + r.at.loss, aal: s.aal + r.aal }), { tiv: 0, loss: 0, aal: 0 });
+  // weighted like the Summary, so the footer of the full list equals the book's totals
+  const totals = rows.reduce((s, r) => ({ tiv: s.tiv + r.b.tiv * r.w, loss: s.loss + r.at.loss * r.w, aal: s.aal + r.aal }), { tiv: 0, loss: 0, aal: 0 });
 
   return (
     <Card
@@ -69,7 +70,7 @@ export default function BuildingsTab({ buildings, res, portfolio, onPickBuilding
         ))}
         <span className="ml-auto text-slate-500">Sort:</span>
         <select value={sort} onChange={(e) => setSort(e.target.value as SortKey)} className="rounded-lg bg-white/[0.06] px-2 py-1.5 text-slate-100">
-          <option value="aal">Average annual loss</option>
+          <option value="aal">AAL in book</option>
           <option value="loss">Loss at 1-in-{rp}</option>
           <option value="tiv">Insured value</option>
           <option value="depth">Depth at 1-in-{rp}</option>
@@ -88,12 +89,13 @@ export default function BuildingsTab({ buildings, res, portfolio, onPickBuilding
               <th className={`${th} text-right`}>Severity</th>
               <th className={`${th} text-right`}>Damage</th>
               <th className={`${th} text-right`}>Loss 1-in-{rp}</th>
-              <th className={`${th} text-right`}>AAL</th>
+              <th className={`${th} text-right`} title="How much this sample building counts in the book's totals">Counts as</th>
+              <th className={`${th} text-right`} title="Own AAL × weight: its contribution to the book's AAL">AAL in book</th>
               <th className={th}>Data</th>
             </tr>
           </thead>
           <tbody>
-            {view.map(({ b, at, aal }) => (
+            {view.map(({ b, at, w, aal }) => (
               <tr key={b.id} onClick={() => onPickBuilding(b)} className={`${tr} cursor-pointer text-slate-200 hover:bg-white/[0.04]`}>
                 <td className={td}>{b.id}</td>
                 <td className={td}>
@@ -106,6 +108,7 @@ export default function BuildingsTab({ buildings, res, portfolio, onPickBuilding
                 <td className={`${td} text-right`}>{severity(at.depth).toFixed(2)}</td>
                 <td className={`${td} text-right`}>{(at.dr * 100).toFixed(0)}%</td>
                 <td className={`${td} text-right`}>{kes(at.loss)}</td>
+                <td className={`${td} text-right text-slate-400`}>×{w.toFixed(2)}</td>
                 <td className={`${td} text-right text-amber-200`}>{kes(aal)}</td>
                 <td className={td}>
                   {b.src === "ai" ? <span className="chip chip-ai">AI · {Math.round((b.confidence ?? 0) * 100)}%</span> : <span className="chip chip-synthetic">synthetic</span>}
@@ -117,11 +120,12 @@ export default function BuildingsTab({ buildings, res, portfolio, onPickBuilding
           <tfoot>
             <tr className="border-t border-white/15 text-slate-300">
               <td className={td} colSpan={3}>
-                {rows.length.toLocaleString("en-KE")} buildings shown
+                {rows.length.toLocaleString("en-KE")} buildings shown · totals weighted, as in the Summary
               </td>
               <td className={`${td} text-right`}>{kes(totals.tiv)}</td>
               <td colSpan={3} />
               <td className={`${td} text-right`}>{kes(totals.loss)}</td>
+              <td />
               <td className={`${td} text-right`}>{kes(totals.aal)}</td>
               <td />
             </tr>

@@ -82,7 +82,10 @@ export function buildingAt(b: BuildingProps, rp: number): BuildingResult {
 export interface ScenarioResult {
   rp: number;
   loss: number;
+  /** sample buildings in the flood (the squares on the map) */
   wet: number;
+  /** the same, weighted: how many buildings of the represented book are in the flood */
+  wetW: number;
   tivWet: number;
   byClass: Record<HousingClass, { loss: number; wet: number }>;
 }
@@ -91,6 +94,7 @@ export function scenario(buildings: BuildingProps[], rp: number): ScenarioResult
   const byClass = Object.fromEntries(CLASSES.map((c) => [c, { loss: 0, wet: 0 }])) as ScenarioResult["byClass"];
   let loss = 0;
   let wet = 0;
+  let wetW = 0;
   let tivWet = 0;
   for (const b of buildings) {
     const w = weightOf(b);
@@ -100,11 +104,12 @@ export function scenario(buildings: BuildingProps[], rp: number): ScenarioResult
     byClass[b.cls].loss += r.loss * w;
     if (r.depth > 0) {
       wet++;
+      wetW += w;
       tivWet += b.tiv * w;
       byClass[b.cls].wet++;
     }
   }
-  return { rp, loss, wet, tivWet, byClass };
+  return { rp, loss, wet, wetW, tivWet, byClass };
 }
 
 /** area under the EP curve: trapezoid in annual exceedance probability, onset at zero, flat tail past 1-in-500 */
@@ -149,6 +154,36 @@ export function runPortfolio(buildings: BuildingProps[]): PortfolioResult {
   return { count, tiv, byClass, scenarios, aal: aal(lossByRp), perBuildingAal };
 }
 
+/** a building's AAL as it counts in the book: its own AAL times its weight */
+export const aalInBook = (res: PortfolioResult, b: BuildingProps) => (res.perBuildingAal.get(b.id) ?? 0) * weightOf(b);
+
+/** policy terms: an excess per building and event (pct of the loss, at least a minimum, never more than the loss),
+ *  then Kenya Re's share of what is left */
+export interface PolicyTerms {
+  excessPct: number;
+  excessMin: number;
+  share: number;
+}
+
+export function netLoss(loss: number, t: PolicyTerms): number {
+  if (loss <= 0) return 0;
+  return (loss - Math.min(loss, Math.max(t.excessPct * loss, t.excessMin))) * t.share;
+}
+
+/** losses after the terms, per key return period, and the net AAL (weighted like every portfolio total) */
+export function netOfTerms(buildings: BuildingProps[], t: PolicyTerms) {
+  const lossByRp: Record<number, number> = {};
+  for (const rp of KEY_RPS) {
+    let total = 0;
+    for (const b of buildings) {
+      const w = weightOf(b);
+      if (w > 0) total += netLoss(buildingAt(b, rp).loss, t) * w;
+    }
+    lossByRp[rp] = total;
+  }
+  return { lossByRp, aal: aal(Object.fromEntries(RPS.map((r) => [r, lossByRp[r]])) as Record<RP, number>) };
+}
+
 /** illustrative technical premium: AAL + cost of capital x (1-in-200 loss - AAL), plus an expense load */
 export function technicalPremium(p: PortfolioResult, costOfCapital = 0.1, expenseLoad = 0.15) {
   const risk = p.aal + costOfCapital * Math.max(p.scenarios[200].loss - p.aal, 0);
@@ -184,6 +219,28 @@ const DRY = Object.fromEntries(RPS.map((r) => [r, 0])) as Record<RP, number>;
 
 export const onWater = (grid: FloodGrid, lon: number, lat: number) =>
   grid.water.has(`${Math.floor((grid.y0 - lat) / grid.d)},${Math.floor((lon - grid.x0) / grid.d)}`);
+
+/** shallowest and deepest land cell within km of a point at one return period (dry cells count as 0) - how much
+ *  the answer depends on exactly where in a village the building stands */
+export function depthRangeNear(grid: FloodGrid, lon: number, lat: number, rp: RP = 100, km = 2) {
+  const col = Math.floor((lon - grid.x0) / grid.d);
+  const row = Math.floor((grid.y0 - lat) / grid.d);
+  const reach = Math.ceil(km / (grid.d * 111.32)) + 1;
+  let min = Infinity;
+  let max = 0;
+  for (let dr = -reach; dr <= reach; dr++)
+    for (let dc = -reach; dc <= reach; dc++) {
+      const key = `${row + dr},${col + dc}`;
+      if (grid.water.has(key)) continue;
+      const cx = grid.x0 + (col + dc + 0.5) * grid.d;
+      const cy = grid.y0 - (row + dr + 0.5) * grid.d;
+      if (Math.hypot((cx - lon) * Math.cos((lat * Math.PI) / 180), cy - lat) * 111.32 > km) continue;
+      const depth = grid.cells.get(key)?.[rp] ?? 0;
+      min = Math.min(min, depth);
+      max = Math.max(max, depth);
+    }
+  return { min: Number.isFinite(min) ? min : 0, max };
+}
 
 /** flood depths for a new location; a point on permanent water takes the nearest land cell (the bank) instead */
 export function hazardAt(grid: FloodGrid, lon: number, lat: number): Record<RP, number> {

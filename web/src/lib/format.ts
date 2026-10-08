@@ -40,6 +40,11 @@ export const WHERE_LABEL: Record<Where, string> = {
 
 export const ISSUE_COLOUR = "#f43f5e";
 
+/** "about 6 (40 sampled)" when weights make the represented count differ from the squares on the map */
+export function floodedText(wet: number, wetW: number): string {
+  return Math.abs(wetW - wet) < 0.5 ? `${wet}` : `≈${Math.max(Math.round(wetW), wetW > 0 ? 1 : 0)} (${wet} sampled)`;
+}
+
 /** water depth ramp (metres) */
 export const DEPTH_STOPS: [number, string][] = [
   [0.25, "#7dd3fc"],

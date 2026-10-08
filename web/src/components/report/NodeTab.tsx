@@ -73,8 +73,20 @@ export default function NodeTab({ nd, res, trigger, setTrigger, live }: ReportPr
         <div className="grid gap-4 lg:grid-cols-5">
           <div className="space-y-3 text-[12px] text-slate-300 lg:col-span-2">
             <label className="block">
-              Trigger: Rwambwa stage ≥ <b>{trigger.triggerStage.toFixed(1)} m</b> (≈ 1-in-{Math.round(rpForStage(nd, trigger.triggerStage) ?? 2)})
-              <input type="range" min={3} max={7} step={0.1} value={trigger.triggerStage} onChange={(e) => setTrigger({ ...trigger, triggerStage: Number(e.target.value) })} className="mt-1 w-full accent-rose-400" />
+              Full payout: Rwambwa stage ≥ <b>{trigger.triggerStage.toFixed(1)} m</b> (≈ 1-in-{Math.round(rpForStage(nd, trigger.triggerStage) ?? 2)})
+              <input type="range" min={3} max={7} step={0.1} value={trigger.triggerStage} onChange={(e) => setTrigger({ ...trigger, triggerStage: Number(e.target.value), firstStage: Math.min(trigger.firstStage, Number(e.target.value) - 0.1) })} className="mt-1 w-full accent-rose-400" />
+            </label>
+            <label className="block">
+              <span className="flex items-center justify-between gap-2">
+                <span>
+                  First step: <b>{Math.round(trigger.firstPct * 100)}%</b> at ≥ <b>{trigger.firstStage.toFixed(1)} m</b> (≈ 1-in-{Math.round(rpForStage(nd, trigger.firstStage) ?? 2)})
+                </span>
+                <span>
+                  <input type="number" step={10} min={0} max={90} value={Math.round(trigger.firstPct * 100)} onChange={(e) => setTrigger({ ...trigger, firstPct: Math.min(Math.max(Number(e.target.value) || 0, 0), 90) / 100 })} className="w-14 rounded bg-white/[0.06] px-1.5 py-0.5 text-right text-slate-100" /> %
+                </span>
+              </span>
+              <input type="range" min={2.8} max={Math.max(trigger.triggerStage - 0.1, 2.8)} step={0.1} value={trigger.firstStage} onChange={(e) => setTrigger({ ...trigger, firstStage: Number(e.target.value) })} className="mt-1 w-full accent-amber-400" />
+              <span className="text-[11px] text-slate-500">0% = a single trigger. A first step catches the frequent floods that carry most of the loss.</span>
             </label>
             <label className="flex items-center justify-between gap-2">
               Payout per event
@@ -119,7 +131,7 @@ export default function NodeTab({ nd, res, trigger, setTrigger, live }: ReportPr
               </tbody>
             </table>
             <p className="mt-2 text-[11px] leading-snug text-slate-500">
-              Rows paying nothing while losses are real are the basis risk the cedant keeps; rows paying more than the loss are over-compensation. The catastrophe model is what lets Kenya Re price and explain both.
+              {price.firstRp ? `Two steps: ${Math.round(trigger.firstPct * 100)}% from 1-in-${Math.round(price.firstRp)}, the rest from 1-in-${Math.round(price.triggerRp)}. ` : ""}Rows paying nothing while losses are real are the basis risk the cedant keeps; rows paying more than the loss are over-compensation. The catastrophe model is what lets Kenya Re price and explain both.
             </p>
           </div>
         </div>

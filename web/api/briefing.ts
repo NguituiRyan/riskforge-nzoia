@@ -31,6 +31,7 @@ const Briefing = z.object({
 const SYSTEM = `You write short flood-risk briefings for a reinsurance underwriter at Kenya Re.
 - Use only numbers that appear in the summary JSON. Every number you mention must also appear in key_figures with its exact JSON path and the exact value.
 - KES amounts: say "KES 8.2 million" style in prose; in key_figures copy the raw number.
+- Money figures are weighted portfolio totals (see "weighting"). A building's weight in the book is topRisks[].aalInBook; never compare a building's own loss with the book total. buildingsFlooded is the weighted count; mention sampleBuildingsFlooded only to explain the map.
 - The portfolio is synthetic; say so once. Name the biggest uncertainty (the flood-defence onset assumption) in caveats.
 - Be direct: what the loss is at key return periods, where it concentrates, what to do about it. No filler.`;
 

@@ -29,6 +29,16 @@ const SOURCES: [string, "real" | "synthetic" | "assumption", string, string][] =
   ["Imagery and terrain in the 3D view", "real", "Esri World Imagery · AWS Terrain Tiles (Mapzen)", "display only"],
 ];
 
+/** the non-functional answers judges ask for: where it runs, what the AI sees, what it costs, who owns it */
+const PRODUCTION: [string, string, string][] = [
+    ["Hosting and data residency", "the prototype runs on Vercel in Mumbai; synthetic data only", "the same web app on Kenya Re servers or a Nairobi data centre, so client schedules never leave Kenya"],
+    ["AI", "Claude (US) reads pasted text; only synthetic text and aggregated figures are sent", "send anonymised text only, or swap in an open model hosted in Kenya - the AI sits behind one interface"],
+    ["Running cost", "near zero: a static site plus small functions; AI is pay-per-use (about 2,500 tokens per broker email in tests)", "the same, plus a hazard licence (JBA or Fathom) when 30 m maps are needed"],
+    ["Security", "river-node readings are HMAC-signed, forged and replayed readings are rejected and counted", "pin the server certificate on nodes, per-node keys, and single sign-on for underwriters"],
+    ["River data", "a demo node in a tank, plus the replayed 2020 GloFAS flood", "the Water Resources Authority's Rwambwa gauge feed for parametric cover; own nodes only where there is no gauge"],
+    ["Ownership and governance", "open code; every number traceable; two engines (Python and browser) agree within 0.06%", "Kenya Re's cat-modelling team owns it; versioned data scripts, a model change log and yearly validation against claims"],
+];
+
 export default function SourcesTab({ stats, baseBuildings, res, aiRows, portfolioName }: ReportProps) {
   const [copied, setCopied] = useState(false);
   const parity = useMemo(() => {
@@ -91,6 +101,22 @@ ${KEY_RPS.map((r) => `- 1-in-${r}${r === 250 ? " (interpolated)" : ""}: ${kes(re
 
   return (
     <div className="space-y-4">
+      <Card title="Production route: what Kenya Re would run" hint="security · data residency · cost · ownership">
+        <div className="grid gap-x-6 gap-y-2 text-[12px] leading-snug text-slate-300 md:grid-cols-2">
+          {PRODUCTION.map(([k, now, next]) => (
+            <div key={k}>
+              <div className="font-medium text-slate-100">{k}</div>
+              <div className="text-slate-400">
+                <span className="text-slate-500">Today:</span> {now}
+              </div>
+              <div>
+                <span className="text-slate-500">In production:</span> {next}
+              </div>
+            </div>
+          ))}
+        </div>
+      </Card>
+
       <Card title="How Risk Forge follows the brief (section 9, steps 1–6)">
         <div className="overflow-x-auto">
           <table className="w-full min-w-[640px] text-[12px]">
