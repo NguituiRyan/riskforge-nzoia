@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useState } from "react";
 import { Badge, Card } from "./ui";
 import type { ReportProps } from "./Report";
 import FinancialTerms from "./FinancialTerms";
@@ -67,6 +67,21 @@ export default function OfferPanel(p: ReportProps) {
   const [tick, setTick] = useState(0);
   const [aiSeconds, setAiSeconds] = useState<number | null>(null);
   const [revealed, setRevealed] = useState(PIPE);
+  const [dragging, setDragging] = useState(false);
+  const inputId = useId();
+
+  // a file dropped just outside the box must not make the browser leave the app to open it
+  useEffect(() => {
+    const stop = (e: DragEvent) => {
+      if (e.dataTransfer?.types.includes("Files")) e.preventDefault();
+    };
+    window.addEventListener("dragover", stop);
+    window.addEventListener("drop", stop);
+    return () => {
+      window.removeEventListener("dragover", stop);
+      window.removeEventListener("drop", stop);
+    };
+  }, []);
   const batch = 1 + Math.max(0, ...aiRows.map((b) => Number(b.batch) || 0));
 
   const run = useMemo(() => {
@@ -155,39 +170,56 @@ export default function OfferPanel(p: ReportProps) {
     <div className="space-y-4">
       <Card title="Offer document → CAT model" hint={<span>PDF or Word · the file stays on this device · <Badge kind="ai" /></span>}>
         <div className="grid gap-3 lg:grid-cols-5">
-          <label
-            className="flex cursor-pointer flex-col items-center justify-center gap-1 rounded-xl border border-dashed border-white/20 bg-white/[0.02] px-4 py-5 text-center hover:border-brand-300/60 lg:col-span-2"
-            onDragOver={(e) => e.preventDefault()}
+          {/* the picker has its own label (htmlFor): buttons inside a label would become its target instead */}
+          <div
+            className={`flex flex-col items-center justify-center gap-2 rounded-xl border border-dashed px-4 py-5 text-center transition lg:col-span-2 ${dragging ? "border-brand-300 bg-brand-400/10" : "border-white/20 bg-white/[0.02]"}`}
+            onDragEnter={(e) => {
+              e.preventDefault();
+              setDragging(true);
+            }}
+            onDragOver={(e) => {
+              e.preventDefault();
+              e.dataTransfer.dropEffect = "copy";
+            }}
+            onDragLeave={(e) => {
+              if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setDragging(false);
+            }}
             onDrop={(e) => {
               e.preventDefault();
+              setDragging(false);
               const f = e.dataTransfer.files?.[0];
               if (f) void onFile(f);
             }}
           >
-            <span className="text-2xl" aria-hidden>
-              📄
-            </span>
-            <span className="text-[13px] text-slate-200">{busy === "read" ? "Reading…" : "Drop a broker offer, or choose a file"}</span>
-            <span className="text-[11px] text-slate-500">.pdf · .docx · .doc · .txt</span>
-            <span className="mt-2 flex flex-wrap justify-center gap-1.5 text-[11px]" onClick={(e) => e.preventDefault()}>
-              <span className="text-slate-500">or try a sample:</span>
-              {SAMPLES.map((x) => (
-                <button key={x.file} type="button" disabled={busy !== null} onClick={() => void trySample(x.file)} className={`rounded-full px-2 py-0.5 ring-1 ${x.tone} disabled:opacity-50`}>
-                  {x.label}
-                </button>
-              ))}
-            </span>
             <input
+              id={inputId}
               type="file"
-              accept=".pdf,.docx,.doc,.txt,.md,.csv,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/msword"
-              className="hidden"
+              accept=".pdf,.docx,.doc,.txt,.md,.csv,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/msword,text/plain"
+              className="sr-only"
+              disabled={busy !== null}
               onChange={(e) => {
                 const f = e.target.files?.[0];
                 e.target.value = "";
                 if (f) void onFile(f);
               }}
             />
-          </label>
+            <label htmlFor={inputId} className={`flex w-full flex-col items-center gap-1 rounded-lg px-2 py-1 ${busy !== null ? "cursor-wait" : "cursor-pointer hover:bg-white/[0.03]"}`}>
+              <span className="text-2xl" aria-hidden>
+                📄
+              </span>
+              <span className="text-[13px] text-slate-200">{busy === "read" ? "Reading…" : dragging ? "Drop it here" : "Drop a broker offer, or choose a file"}</span>
+              <span className="text-[11px] text-slate-500">.pdf · .docx · .doc · .txt · up to 15 MB</span>
+              <span className="mt-1 rounded-lg bg-brand px-3 py-1.5 text-[12px] font-semibold text-on-brand">Choose a file</span>
+            </label>
+            <div className="flex flex-wrap justify-center gap-1.5 text-[11px]">
+              <span className="text-slate-500">or try a sample:</span>
+              {SAMPLES.map((x) => (
+                <button key={x.file} type="button" disabled={busy !== null} onClick={() => void trySample(x.file)} className={`rounded-full px-2 py-0.5 ring-1 ${x.tone} disabled:opacity-50`}>
+                  {x.label}
+                </button>
+              ))}
+            </div>
+          </div>
           <div className="space-y-2 lg:col-span-3">
             {doc ? (
               <>
