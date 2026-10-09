@@ -2,6 +2,15 @@
 
 An ESP32 with an ultrasonic sensor measures the water level in a tank that stands in for the Nzoia at Rwambwa Bridge. Over Wi-Fi it sends a signed reading every 3 seconds. The Risk Forge dashboard turns each reading into a return period and a loss for every insured building, on any laptop or phone.
 
+## Direct USB on this computer
+
+1. Plug the ESP32-S3 Mini into this computer with a **USB data cable**. Windows should show a USB Serial Device (COM port). Close Arduino Serial Monitor or any other program using that port.
+2. Open [Risk Forge](https://riskforge.rytrix.co.ke/) in a Chromium browser with Web Serial support. Select **Live river node → USB → Connect river node (USB)**, choose the ESP32 COM port in the browser prompt, and allow the connection.
+3. The panel shows the measured water level in cm and the scaled river stage in m. Only lines with `"ok":true` are used; a missing echo is shown as a sensor error.
+4. With the container **empty**, press the board's BOOT button or send `z` in Arduino Serial Monitor before opening the website. This saves the empty distance; close Serial Monitor before connecting the website. The AJ-SR04M needs at least 20 cm between its probe and the highest water surface.
+
+USB works without Wi-Fi credentials or `NODE_SECRET`. The browser tab and the ESP32 must be on the same computer. For phones or another computer, use the Wi-Fi setup below.
+
 ```text
 water in the tank (cm)  --Wi-Fi, signed-->  /api/node (verifies)  -->  dashboard: stage → return period → flood footprint → loss
 ```

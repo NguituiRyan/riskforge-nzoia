@@ -23,7 +23,7 @@ const fmtInt = (n: number) => Math.round(n).toLocaleString("en-KE");
 interface Props {
   nd: NodeData;
   reading: NodeReading | null;
-  onReading: (r: NodeReading) => void;
+  onReading: (r: NodeReading | null) => void;
   scenario: ScenarioResult | null;
   trigger: TriggerTerms;
   onOpenReport: () => void;
@@ -37,7 +37,9 @@ export default function LivePanel({ nd, reading, onReading, scenario, trigger, o
   const [scale, setScale] = useState(0.3); // metres of river stage per cm of water in the demo tank
   const [usb, setUsb] = useState<{ state: "idle" | "connecting" | "connected" | "error"; msg?: string; lines: number }>({ state: "idle", lines: 0 });
   const portRef = useRef<SerialPortLike | null>(null);
-  const readerRef = useRef<ReadableStreamDefaultReader<string> | null>(null);
+  const readerRef = useRef<ReadableStreamDefaultReader<Uint8Array> | null>(null);
+  const sourceRef = useRef(source);
+  sourceRef.current = source;
   const scaleRef = useRef(scale);
   scaleRef.current = scale;
   const emit = useRef(onReading);
@@ -92,9 +94,14 @@ export default function LivePanel({ nd, reading, onReading, scenario, trigger, o
         if (l && key !== lastCloudKey.current && (j.age_s ?? Infinity) <= ONLINE_S) {
           lastCloudKey.current = key;
           emit.current({ stage: Math.max(l.level_cm, 0) * scaleRef.current, at: Date.now(), source: "wifi", levelCm: l.level_cm, seq: l.seq, raw: JSON.stringify({ node: j.node, seq: l.seq, ts: l.ts, level_cm: l.level_cm, verified: true }) });
+        } else if (!l || (j.age_s ?? Infinity) > ONLINE_S) {
+          emit.current(null);
         }
       } catch (e) {
-        if (!stop) setCloudErr(e instanceof Error ? e.message : String(e));
+        if (!stop) {
+          setCloudErr(e instanceof Error ? e.message : String(e));
+          emit.current(null);
+        }
       }
     };
     void poll();
@@ -117,49 +124,78 @@ export default function LivePanel({ nd, reading, onReading, scenario, trigger, o
       await port.open({ baudRate: 115200 });
       portRef.current = port;
       setUsb({ state: "connected", lines: 0 });
-      const decoder = new TextDecoderStream();
-      void port.readable!.pipeTo(decoder.writable as WritableStream<Uint8Array>);
-      const reader = decoder.readable.getReader();
+      if (!port.readable) throw new Error("The selected serial port has no readable stream.");
+      const reader = port.readable.getReader();
       readerRef.current = reader;
+      const decoder = new TextDecoder();
       let buf = "";
-      for (;;) {
-        const { value, done } = await reader.read();
-        if (done) break;
-        buf += value;
-        let nl: number;
-        while ((nl = buf.indexOf("\n")) >= 0) {
-          const line = buf.slice(0, nl).trim();
-          buf = buf.slice(nl + 1);
-          if (!line.startsWith("{")) continue;
-          try {
-            const j = JSON.parse(line) as { node?: string; seq?: number; level_cm?: number };
-            if (typeof j.level_cm !== "number") continue;
-            emit.current({ stage: Math.max(j.level_cm, 0) * scaleRef.current, at: Date.now(), source: "usb", levelCm: j.level_cm, seq: j.seq, raw: line });
-            setUsb((u) => ({ ...u, lines: u.lines + 1 }));
-          } catch {
-            /* ignore partial lines */
+      try {
+        for (;;) {
+          const { value, done } = await reader.read();
+          if (done) break;
+          buf += decoder.decode(value, { stream: true });
+          if (buf.length > 4096) buf = buf.slice(-4096);
+          let nl: number;
+          while ((nl = buf.indexOf("\n")) >= 0) {
+            const line = buf.slice(0, nl).trim();
+            buf = buf.slice(nl + 1);
+            if (!line.startsWith("{")) continue;
+            try {
+              const j = JSON.parse(line) as { node?: string; seq?: number; level_cm?: number; ok?: boolean };
+              if (j.node !== nodeId || typeof j.level_cm !== "number" || !Number.isFinite(j.level_cm) || j.level_cm < 0 || j.ok !== true) {
+                if (j.node === nodeId && j.ok === false && sourceRef.current === "usb") {
+                  setUsb((u) => ({ ...u, msg: "No valid echo from the sensor. Check its wiring and keep the water at least 20 cm below the probe." }));
+                  emit.current(null);
+                }
+                continue;
+              }
+              if (sourceRef.current !== "usb") continue;
+              emit.current({ stage: j.level_cm * scaleRef.current, at: Date.now(), source: "usb", levelCm: j.level_cm, seq: j.seq, raw: line });
+              setUsb((u) => ({ ...u, msg: undefined, lines: u.lines + 1 }));
+            } catch {
+              /* ignore non-reading JSON lines */
+            }
+          }
+        }
+      } finally {
+        reader.releaseLock();
+        if (readerRef.current === reader) readerRef.current = null;
+        if (portRef.current === port) {
+          portRef.current = null;
+          await port.close().catch(() => undefined);
+          if (sourceRef.current === "usb") {
+            emit.current(null);
+            setUsb((u) => u.state === "connected" ? { ...u, state: "error", msg: "The USB connection ended. Reconnect the node." } : u);
           }
         }
       }
     } catch (e) {
-      setUsb({ state: "error", msg: e instanceof Error ? e.message : String(e), lines: 0 });
+      if (sourceRef.current === "usb") setUsb({ state: "error", msg: e instanceof Error ? e.message : String(e), lines: 0 });
     }
   }
 
   async function disconnectUsb() {
     try {
       await readerRef.current?.cancel();
-      await portRef.current?.close();
     } catch {
       /* already closed */
     }
-    portRef.current = null;
-    readerRef.current = null;
     setUsb({ state: "idle", lines: 0 });
+    if (sourceRef.current === "usb") emit.current(null);
   }
   useEffect(() => () => void disconnectUsb(), []);
 
-  const stage = reading?.stage ?? 0;
+  useEffect(() => {
+    if (source !== "usb" || reading?.source !== "usb") return;
+    const id = window.setTimeout(() => {
+      emit.current(null);
+      setUsb((u) => u.state === "connected" ? { ...u, msg: "No fresh sensor reading for 5 seconds. Check the USB connection." } : u);
+    }, 5000);
+    return () => window.clearTimeout(id);
+  }, [source, reading]);
+
+  const hasReading = reading?.source === source;
+  const stage = hasReading ? reading.stage : 0;
   const rp = rpForStage(nd, stage);
   const alert = alertFor(nd, stage);
   const replayDay = source === "replay" ? series[dayIdx] : null;
@@ -175,7 +211,7 @@ export default function LivePanel({ nd, reading, onReading, scenario, trigger, o
           <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">River node · {nd.node.name}</div>
           <div className="text-[11px] text-slate-500">{nd.node.id} · ultrasonic level sensor on ESP32</div>
         </div>
-        <span className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ring-1 ${toneClass}`}>{alert.label}</span>
+        <span className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ring-1 ${hasReading ? toneClass : "bg-white/[0.06] text-slate-400 ring-white/10"}`}>{hasReading ? alert.label : "Waiting for reading"}</span>
       </div>
 
       <div className="grid grid-cols-4 gap-1 rounded-xl bg-white/[0.04] p-1">
@@ -183,6 +219,9 @@ export default function LivePanel({ nd, reading, onReading, scenario, trigger, o
           <button
             key={s}
             onClick={() => {
+              if (source === "usb" && s !== "usb") void disconnectUsb();
+              if (s === "usb" || s === "wifi") emit.current(null);
+              sourceRef.current = s;
               setSource(s);
               setPlaying(false);
             }}
@@ -246,8 +285,10 @@ export default function LivePanel({ nd, reading, onReading, scenario, trigger, o
             </button>
           )}
           {usb.state === "error" && <div className="text-rose-300">{usb.msg}</div>}
+          {usb.state === "connected" && <div className="text-slate-400">{usb.msg ?? (usb.lines === 0 ? "Waiting for a valid sensor reading…" : `Water level: ${reading?.source === "usb" ? reading.levelCm?.toFixed(1) : "—"} cm above the calibrated empty level`)}</div>}
+          {usb.state === "idle" && <p className="text-slate-400">Plug the ESP32-S3 Mini into this computer with a data cable, close Arduino Serial Monitor, then choose its USB port. Chrome or Edge is required.</p>}
           <TankScale scale={scale} setScale={setScale} />
-          {reading?.raw && <code className="block truncate rounded bg-black/40 px-2 py-1 text-[10px] text-slate-400">{reading.raw}</code>}
+          {reading?.source === "usb" && reading.raw && <code className="block truncate rounded bg-black/40 px-2 py-1 text-[10px] text-slate-400">{reading.raw}</code>}
         </div>
       )}
 
@@ -256,8 +297,8 @@ export default function LivePanel({ nd, reading, onReading, scenario, trigger, o
       <div className="flex gap-3">
         <Gauge nd={nd} stage={stage} trigger={trigger.triggerStage} />
         <div className="grid flex-1 grid-cols-2 gap-2">
-          <Tile label="River stage">{stage.toFixed(2)} m</Tile>
-          <Tile label="Return period">{rp ? `1-in-${rp < 10 ? rp.toFixed(1) : Math.round(rp)}` : "in bank"}</Tile>
+          <Tile label="River stage">{hasReading ? `${stage.toFixed(2)} m` : "—"}</Tile>
+          <Tile label="Return period">{hasReading ? (rp ? `1-in-${rp < 10 ? rp.toFixed(1) : Math.round(rp)}` : "in bank") : "—"}</Tile>
           <Tile label="Flow" hint={replayDay ? "GloFAS" : "fitted"}>{flow ? `${Math.round(flow).toLocaleString("en-KE")} m³/s` : "—"}</Tile>
           <Tile label="Buildings flooded">
             <AnimatedValue value={scenario?.wet ?? 0} format={fmtInt} duration={0.3} />

@@ -92,6 +92,7 @@ float emptyDistCm = DEFAULT_EMPTY_CM;  // distance from the sensor to the empty 
 uint32_t seq = 0;
 unsigned long lastPrint = 0, lastPost = 0, lastWifiCheck = 0;
 float lastLevel = 0;
+bool lastMeasureOk = false;
 
 float pingCm() {
   digitalWrite(PIN_TRIG, LOW);
@@ -245,6 +246,7 @@ void loop() {
     lastPrint = millis();
     float d = medianDistanceCm();
     bool ok = !isnan(d);
+    lastMeasureOk = ok;
     if (ok) lastLevel = max(0.0f, emptyDistCm - d);
     seq++;
     Serial.printf("{\"node\":\"%s\",\"seq\":%lu,\"dist_cm\":%.1f,\"level_cm\":%.1f,\"ok\":%s}\n", NODE_ID, (unsigned long)seq, ok ? d : -1.0, lastLevel, ok ? "true" : "false");
@@ -258,7 +260,7 @@ void loop() {
   }
   if (millis() - lastPost >= POST_EVERY_MS) {
     lastPost = millis();
-    postReading(lastLevel);
+    if (lastMeasureOk) postReading(lastLevel);
   }
 #endif
 }
