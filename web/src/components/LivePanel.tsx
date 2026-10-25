@@ -95,11 +95,13 @@ export default function LivePanel({ nd, reading, onReading, scenario, trigger, o
           lastCloudKey.current = key;
           emit.current({ stage: Math.max(l.level_cm, 0) * scaleRef.current, at: Date.now(), source: "wifi", levelCm: l.level_cm, seq: l.seq, raw: JSON.stringify({ node: j.node, seq: l.seq, ts: l.ts, level_cm: l.level_cm, verified: true }) });
         } else if (!l || (j.age_s ?? Infinity) > ONLINE_S) {
+          lastCloudKey.current = "";
           emit.current(null);
         }
       } catch (e) {
         if (!stop) {
           setCloudErr(e instanceof Error ? e.message : String(e));
+          lastCloudKey.current = ""; // a cleared reading must be re-shown when the same fresh sample comes back
           emit.current(null);
         }
       }
@@ -220,7 +222,10 @@ export default function LivePanel({ nd, reading, onReading, scenario, trigger, o
             key={s}
             onClick={() => {
               if (source === "usb" && s !== "usb") void disconnectUsb();
-              if (s === "usb" || s === "wifi") emit.current(null);
+              if (s === "usb" || s === "wifi") {
+                lastCloudKey.current = "";
+                emit.current(null);
+              }
               sourceRef.current = s;
               setSource(s);
               setPlaying(false);
